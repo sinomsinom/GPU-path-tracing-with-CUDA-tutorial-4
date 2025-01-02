@@ -1,0 +1,17 @@
+# IDEs
+.vs/
+.vscode/
+.idea/
+
+# build directories
+build/
+out/
+
+# data dir
+data/
+
+# vcpkg directory
+vcpkg_installed
+
+# cmake
+CMakeSettings.json

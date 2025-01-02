@@ -1,16 +1,28 @@
-project(GPU-path-tracing-tutorial-4)
+cmake_minimum_required(VERSION 3.29)
 
-cmake_minimum_required(VERSION 2.8)
+include(CheckLanguage)
 
-find_package(CUDA REQUIRED)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    add_definitions(-DUSE_CUDA)    
+
+    include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+else()
+    message("Failed to find CUDA Compiler")
+endif()
+
+project(CUDA_PATH_TRACER LANGUAGES CUDA CXX)
+
+# find_package(CUDA REQUIRED)
 find_package(GLEW REQUIRED)
-find_package(GLUT REQUIRED)
+find_package(FreeGLUT REQUIRED)
 find_package(OpenGL REQUIRED)
 
 
-include_directories(${CUDA_INCLUDE_DIRS})
+# include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${GLEW_INCLUDE_DIR})
-include_directories(${GLUT_INCLUDE_DIR})
+include_directories(${FreeGLUT_INCLUDE_DIR})
 include_directories(${OPENGL_INCLUDE_DIR})
 
 set(HEADERS
@@ -46,11 +58,21 @@ set(SOURCES
     Util.cpp
 )
 
-cuda_add_executable(tutorial4 ${HEADERS} ${SOURCES})
+add_executable(CUDA_PT ${HEADERS} ${SOURCES})
+set_target_properties(CUDA_PT PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+target_compile_features(CUDA_PT PUBLIC cxx_std_20)
 
-target_link_libraries(tutorial4
-    ${CUDA_LIBRARIES}
+target_link_libraries(CUDA_PT
+#    ${CUDA_LIBRARIES}
     ${GLEW_LIBRARIES}
-    ${GLUT_LIBRARIES}
+    ${FreeGLUT_INCLUDE_DIR}
+    $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
     ${OPENGL_LIBRARIES}
+)
+
+add_custom_command(
+    TARGET CUDA_PT POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/data
+            ${CMAKE_CURRENT_BINARY_DIR}/data
 )
