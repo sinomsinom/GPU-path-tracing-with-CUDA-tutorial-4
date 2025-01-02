@@ -3,18 +3,18 @@
 #include "Camera.h"
 #include "CudaRenderKernel.h"
 #include "cutil_math.h" // required for float3
-#include "stdio.h"
+#include <cstdio>
 #include <channel_descriptor.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#include <curand.h>
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>
 #include <driver_types.h>
 #include <vector_functions.h>
 #include <vector_types.h>
 #include <texture_indirect_functions.h>
+#include <numbers>
 
 // Macro for checking cuda errors following a cuda launch or api call
 #define cudaCheckError( e )                                                                     \
@@ -25,16 +25,15 @@
         }                                                                                    \
     }
 
-#define STACK_SIZE  64  // Size of the traversal stack in local memory.
-#define M_PI 3.1415926535897932384626422832795028841971f
-#define TWO_PI 6.2831853071795864769252867665590057683943f
-#define DYNAMIC_FETCH_THRESHOLD 20          // If fewer than this active, fetch new rays
-#define samps 1
-#define F32_MIN          (1.175494351e-38f)
-#define F32_MAX          (3.402823466e+38f)
+constexpr auto STACK_SIZE = 64; // Size of the traversal stack in local memory.
+constexpr auto TWO_PI = 6.2831853071795864769252867665590057683943f;
+constexpr auto DYNAMIC_FETCH_THRESHOLD = 20; // If fewer than this active, fetch new rays
+constexpr auto samps = 1;
+constexpr auto F32_MIN = (1.175494351e-38f);
+constexpr auto F32_MAX = (3.402823466e+38f);
 
-#define HDRwidth 3200
-#define HDRheight 1600
+constexpr auto HDRwidth = 3200;
+constexpr auto HDRheight = 1600;
 #define HDR
 
 enum Refl_t { DIFF, METAL, SPEC, REFR, COAT };  // material types
@@ -47,7 +46,7 @@ cudaTextureObject_t triIndicesTextureObj;
 cudaTextureObject_t HDRTextureObj;
 
 __device__ inline Vec3f absmax3f(const Vec3f& v1, const Vec3f& v2){
-	return Vec3f(v1.x*v1.x > v2.x*v2.x ? v1.x : v2.x, v1.y*v1.y > v2.y*v2.y ? v1.y : v2.y, v1.z*v1.z > v2.z*v2.z ? v1.z : v2.z);
+	return {v1.x*v1.x > v2.x*v2.x ? v1.x : v2.x, v1.y*v1.y > v2.y*v2.y ? v1.y : v2.y, v1.z*v1.z > v2.z*v2.z ? v1.z : v2.z};
 }
 
 struct Ray {
@@ -180,21 +179,19 @@ __device__ Vec3f intersectRayTriangle(const Vec3f& v0, const Vec3f& v1, const Ve
 		if (v < 0.0f || (u + v) > 1.0f) return miss;
         // if u and v are within these bounds, continue and go to float t = dot(...
     }
-
 	else if (det < -EPSILON)
 	{
 		if (u > 0.0f || u < 1.0f) return miss;
 		if (v > 0.0f || (u + v) < 1.0f) return miss;
         // else continue
     }
-
     else // if det is not larger (more positive) than EPSILON or not smaller (more negative) than -EPSILON, there is a "miss"
         return miss;
 
     float t = dot(edge2, qvec) * invdet;
 
     if (t > raytmin && t < raytmax)
-        return Vec3f(u, v, t);
+        return {u, v, t};
 
     // otherwise (t < raytmin or t > raytmax) miss
     return miss;
@@ -241,7 +238,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 	oodz = origz * idirz;  // ray origin / ray direction
 
     traversalStack[0] = EntrypointSentinel; // Bottom-most entry. 0x76543210 is 1985229328 in decimal
-    stackPtr = (char*)&traversalStack[0]; // point stackPtr to bottom of traversal stack = EntryPointSentinel
+    stackPtr = reinterpret_cast<char *>(&traversalStack[0]); // point stackPtr to bottom of traversal stack = EntryPointSentinel
 	leafAddr = 0;   // No postponed leaf.
 	nodeAddr = 0;   // Start from the root.
 	hitIndex = -1;  // No triangle intersected so far.
@@ -254,7 +251,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
         bool searchingLeaf = true; // flag required to increase efficiency of threads in warp
         while (nodeAddr >= 0 && nodeAddr != EntrypointSentinel)
         {
-            float4* ptr = (float4*)((char*)gpuNodes + nodeAddr);
+            float4* ptr = reinterpret_cast<float4 *>((char *) gpuNodes + nodeAddr);
             float4 n0xy = ptr[0]; // childnode 0, xy-bounds (c0.lo.x, c0.hi.x, c0.lo.y, c0.hi.y)
             float4 n1xy = ptr[1]; // childnode 1. xy-bounds (c1.lo.x, c1.hi.x, c1.lo.y, c1.hi.y)
             float4 nz = ptr[2]; // childnodes 0 and 1, z-bounds(c0.lo.z, c0.hi.z, c1.lo.z, c1.hi.z)
@@ -287,7 +284,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 
 			if (!traverseChild0 && !traverseChild1)  
 			{
-                nodeAddr = *(int*)stackPtr; // fetch next node by popping stack
+                nodeAddr = *reinterpret_cast<int *>(stackPtr); // fetch next node by popping stack
                 stackPtr -= 4; // popping decrements stack by 4 bytes (because stackPtr is a pointer to char)
             }
 
@@ -295,7 +292,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 
             else  // one or both children intersected
             {
-                int2 cnodes = *(int2*)&ptr[3];
+                int2 cnodes = *reinterpret_cast<int2 *>(&ptr[3]);
                 // set nodeAddr equal to intersected childnode (first childnode when both children are intersected)
                 nodeAddr = (traverseChild0) ? cnodes.x : cnodes.y;
 
@@ -306,7 +303,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
                     if (c1min < c0min)
                         swap2(nodeAddr, cnodes.y);
                     stackPtr += 4;  // pushing increments stack by 4 bytes (stackPtr is a pointer to char)
-                    *(int*)stackPtr = cnodes.y; // push furthest node on the stack
+                    *reinterpret_cast<int *>(stackPtr) = cnodes.y; // push furthest node on the stack
                 }
             }
 
@@ -318,7 +315,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
                 searchingLeaf = false; // required for warp efficiency
                 leafAddr = nodeAddr;
 
-				nodeAddr = *(int*)stackPtr;  // pops next node from stack
+				nodeAddr = *reinterpret_cast<int *>(stackPtr);  // pops next node from stack
 				stackPtr -= 4;  // decrement by 4 bytes (stackPtr is a pointer to char)
             }
 
@@ -403,7 +400,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 
             if (nodeAddr < 0)
             {
-                nodeAddr = *(int*)stackPtr;  // pop stack
+                nodeAddr = *reinterpret_cast<int *>(stackPtr);  // pop stack
                 stackPtr -= 4;               // decrement with 4 bytes to get the next int (stackPtr is char*)
             }
         } // end leaf/triangle intersection loop
@@ -487,7 +484,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
         // Setup traversal + initialisation
 
         traversalStack[0] = EntrypointSentinel; // Bottom-most entry. 0x76543210 (1985229328 in decimal)
-        stackPtr = (char*)&traversalStack[0]; // point stackPtr to bottom of traversal stack = EntryPointSentinel
+        stackPtr = reinterpret_cast<char *>(&traversalStack[0]); // point stackPtr to bottom of traversal stack = EntryPointSentinel
         leafAddr = 0;   // No postponed leaf.
         nodeAddr = 0;   // Start from the root.
         hitIndex = -1;  // No triangle intersected so far.
@@ -511,7 +508,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
             float4 n1xy = tex1Dfetch<float4>(bvhNodesTextureObj, nodeAddr + 1); // childnode 1, xy-bounds (c1.lo.x, c1.hi.x, c1.lo.y, c1.hi.y)
             float4 nz   = tex1Dfetch<float4>(bvhNodesTextureObj, nodeAddr + 2); // childnode 0 and 1, z-bounds (c0.lo.z, c0.hi.z, c1.lo.z, c1.hi.z)
             float4 tmp  = tex1Dfetch<float4>(bvhNodesTextureObj, nodeAddr + 3); // contains indices to 2 childnodes in case of innernode, see below
-            int2 cnodes = *(int2*)&tmp; // cast first two floats to int
+            int2 cnodes = *reinterpret_cast<int2 *>(&tmp); // cast first two floats to int
             // (childindex = size of array during building, see CudaBVH.cpp)
 
             // compute ray intersections with BVH node bounding box
@@ -546,7 +543,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
 
             if (!traverseChild0 && !traverseChild1)
             {
-                nodeAddr = *(int*)stackPtr; // fetch next node by popping the stack
+                nodeAddr = *reinterpret_cast<int *>(stackPtr); // fetch next node by popping the stack
                 stackPtr -= 4; // popping decrements stackPtr by 4 bytes (because stackPtr is a pointer to char)
             }
 
@@ -575,7 +572,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
             {
                 searchingLeaf = false; // required for warp efficiency
                 leafAddr = nodeAddr;
-                nodeAddr = *(int*)stackPtr;  // pops next node from stack
+                nodeAddr = *reinterpret_cast<int *>(stackPtr);  // pops next node from stack
                 stackPtr -= 4;  // decrements stackptr by 4 bytes (because stackPtr is a pointer to char)
             }
 
@@ -690,7 +687,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
             leafAddr = nodeAddr;
 			if (nodeAddr < 0)    // nodeAddr is an actual leaf when < 0
             {
-				nodeAddr = *(int*)stackPtr;  // pop stack
+				nodeAddr = *reinterpret_cast<int *>(stackPtr);  // pop stack
 				stackPtr -= 4;               // decrement with 4 bytes to get the next int (stackPtr is char*)
             }
         } // end leaf/triangle intersection loop
@@ -798,18 +795,18 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             // map theta and phi to u and v texturecoordinates in [0,1] x [0,1] range
             float offsetY = 0.5f;
             float u = longlatX / TWO_PI; // +offsetY;
-            float v = longlatY / M_PI ;
+            float v = longlatY / std::numbers::pi;
 
             // map u, v to integer coordinates
-            int u2 = (int)(u * HDRwidth); //% HDRwidth;
-            int v2 = (int)(v * HDRheight); // % HDRheight;
+            int u2 = static_cast<int>(u * HDRwidth); //% HDRwidth;
+            int v2 = static_cast<int>(v * HDRheight); // % HDRheight;
 
             // compute the texel index in the HDR map
             int HDRtexelidx = u2 + v2 * HDRwidth;
 
             //float4 HDRcol = HDRmap[HDRtexelidx];
-            float4 HDRcol = tex1Dfetch<float4>(HDRTextureObj, HDRtexelidx);  // fetch from texture
-            Vec3f HDRcol2 = Vec3f(HDRcol.x, HDRcol.y, HDRcol.z);
+            auto [x, y, z, w] = tex1Dfetch<float4>(HDRTextureObj, HDRtexelidx);  // fetch from texture
+            Vec3f HDRcol2(x, y, z);
 
             emit = HDRcol2 * 2.0f;
             accucolor += (mask * emit);
@@ -855,7 +852,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
         if (refltype == DIFF){
 
             // pick two random numbers
-            float phi = 2 * M_PI * curand_uniform(randstate);
+            float phi = 2 * std::numbers::pi * curand_uniform(randstate);
             float r2 = curand_uniform(randstate);
             float r2s = sqrtf(r2);
 
@@ -881,7 +878,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 
             // compute random perturbation of ideal reflection vector
             // the higher the phong exponent, the closer the perturbed vector is to the ideal reflection direction
-            float phi = 2 * M_PI * curand_uniform(randstate);
+            float phi = 2 * std::numbers::pi * curand_uniform(randstate);
             float r2 = curand_uniform(randstate);
             float phongexponent = 30;
             float cosTheta = powf(1 - r2, 1.0f / (phongexponent + 1));
@@ -945,7 +942,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 
             else {  // calculate perfectly diffuse reflection
 
-                float r1 = 2 * M_PI * curand_uniform(randstate);
+                float r1 = 2 * std::numbers::pi * curand_uniform(randstate);
                 float r2 = curand_uniform(randstate);
                 float r2s = sqrtf(r2);
 
@@ -1069,8 +1066,8 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
         Vec3f verticalAxis = cross(horizontalAxis, rendercamview); verticalAxis.normalize(); // verticalAxis is normalized by default, but normalize it explicitly just for good measure.
 
         Vec3f middle = rendercampos + rendercamview;
-        Vec3f horizontal = horizontalAxis * tanf(cudaRendercam->fov.x * 0.5 * (M_PI / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
-        Vec3f vertical = verticalAxis * tanf(-cudaRendercam->fov.y * 0.5 * (M_PI / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
+        Vec3f horizontal = horizontalAxis * tanf(cudaRendercam->fov.x * 0.5 * (std::numbers::pi / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
+        Vec3f vertical = verticalAxis * tanf(-cudaRendercam->fov.y * 0.5 * (std::numbers::pi / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
 
         // anti-aliasing
         // calculate center of current pixel and add random number in X and Y dimension
@@ -1130,13 +1127,13 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
     // averaged colour: divide colour by the number of calculated frames so far
     Vec3f tempcol = accumbuffer[i] / framenumber;
 
-    Colour fcolour;
-    Vec3f colour = Vec3f(clamp(tempcol.x, 0.0f, 1.0f), clamp(tempcol.y, 0.0f, 1.0f), clamp(tempcol.z, 0.0f, 1.0f));
+    Colour fcolour{};
+    Vec3f colour(clamp(tempcol.x, 0.0f, 1.0f), clamp(tempcol.y, 0.0f, 1.0f), clamp(tempcol.z, 0.0f, 1.0f));
 
     // convert from 96-bit to 24-bit colour + perform gamma correction
-    fcolour.components = make_uchar4((unsigned char)(powf(colour.x, 1 / 2.2f) * 255),
-        (unsigned char)(powf(colour.y, 1 / 2.2f) * 255),
-        (unsigned char)(powf(colour.z, 1 / 2.2f) * 255), 1);
+    fcolour.components = make_uchar4(static_cast<unsigned char>(powf(colour.x, 1 / 2.2f) * 255),
+        static_cast<unsigned char>(powf(colour.y, 1 / 2.2f) * 255),
+        static_cast<unsigned char>(powf(colour.z, 1 / 2.2f) * 255), 1);
 
     // store pixel coordinates and pixelcolour in OpenGL readable outputbuffer
     output[i] = Vec3f(x, y, fcolour.c);

@@ -2,6 +2,7 @@
 #include <math.h>
 #include "Camera.h"
 #include "CudaRenderKernel.h"
+#include <numbers>
 
 InteractiveCamera::InteractiveCamera()
 {
@@ -77,12 +78,12 @@ void InteractiveCamera::setResolution(float x, float y){
 }
 
 float radiansToDegrees(float radians) {
-	float degrees = radians * 180.0 / M_PI;
+    float degrees = radians * 180.0 / std::numbers::pi;
 	return degrees;
 }
 
 float degreesToRadians(float degrees) {
-	float radians = degrees / 180.0 * M_PI;
+    float radians = degrees / 180.0 * std::numbers::pi;
 	return radians;
 }
 
@@ -116,7 +117,7 @@ float mod(float x, float y) { // Does this account for -y ???
 }
 
 void InteractiveCamera::fixYaw() {
-	yaw = mod(yaw, 2 * M_PI); // Normalize the yaw.
+    yaw = mod(yaw, 2 * std::numbers::pi); // Normalize the yaw.
 }
 
 float clamp2(float n, float low, float high) {

@@ -18,16 +18,13 @@
 #include "MouseKeyboardInput.h"
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
-
-#ifndef M_PI
-#define M_PI 3.14156265
-#endif
+#include <cxxopts.hpp>
 
 // test scenes
 
 //const char* scenefile = "data/icosahedron.obj";
 //const char* scenefile = "data/dragon_vrip_res3.ply";  
-const char* scenefile = "data/dragon.obj"; 
+// const char* scenefile = "data/dragon.obj";
 //const char* scenefile = "data/happy_vrip_res2.ply";  
 //const char* scenefile = "data/happy_vrip.ply"; 
 //const char* scenefile = "data/bun_zipper.ply";  
@@ -39,30 +36,30 @@ const char* scenefile = "data/dragon.obj";
 // HDR environment
 
 //const char* HDRmapname = "data/ArboretumInBloom_Ref.hdr"; 
-const char* HDRmapname = "data/Topanga_Forest_B_3k.hdr";
+//const char* HDRmapname = "data/Topanga_Forest_B_3k.hdr";
 //const char* HDRmapname = "data/Ditch-River_2k.hdr";
 //const char* HDRmapname = "data/GCanyon_C_YumaPoint_3k.hdr";
 
-Vec4i* cpuNodePtr = NULL;
-Vec4i* cpuTriWoopPtr = NULL;
-Vec4i* cpuTriDebugPtr = NULL;
-Vec4f* cpuTriNormalPtr = NULL;
-S32*   cpuTriIndicesPtr = NULL;
+Vec4i* cpuNodePtr = nullptr;
+Vec4i* cpuTriWoopPtr = nullptr;
+Vec4i* cpuTriDebugPtr = nullptr;
+Vec4f* cpuTriNormalPtr = nullptr;
+S32*   cpuTriIndicesPtr = nullptr;
 
-float4* cudaNodePtr = NULL;
-float4* cudaTriWoopPtr = NULL;
-float4* cudaTriDebugPtr = NULL;
-float4* cudaTriNormalPtr = NULL;
-S32*    cudaTriIndicesPtr = NULL;
+float4* cudaNodePtr = nullptr;
+float4* cudaTriWoopPtr = nullptr;
+float4* cudaTriDebugPtr = nullptr;
+float4* cudaTriNormalPtr = nullptr;
+S32*    cudaTriIndicesPtr = nullptr;
 
-Camera* cudaRendercam = NULL;
-Camera* hostRendercam = NULL;
-Vec3f* accumulatebuffer = NULL; // image buffer storing accumulated pixel samples
-Vec3f* finaloutputbuffer = NULL; // stores averaged pixel samples
-float4* gpuHDRenv = NULL;
-Vec4f* cpuHDRenv = NULL;
-Vec4f* m_triNormals = NULL;
-CudaBVH* gpuBVH = NULL;
+Camera* cudaRendercam = nullptr;
+Camera* hostRendercam = nullptr;
+Vec3f* accumulatebuffer = nullptr; // image buffer storing accumulated pixel samples
+Vec3f* finaloutputbuffer = nullptr; // stores averaged pixel samples
+float4* gpuHDRenv = nullptr;
+Vec4f* cpuHDRenv = nullptr;
+Vec4f* m_triNormals = nullptr;
+CudaBVH* gpuBVH = nullptr;
 
 Clock watch;
 GLuint vbo;
@@ -92,7 +89,7 @@ void createVBO(GLuint* vbo)
 
 	//Initialize VBO
 	unsigned int size = scrwidth * scrheight * sizeof(Vec3f);
-	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	//Register VBO with CUDA
@@ -100,7 +97,7 @@ void createVBO(GLuint* vbo)
 }
 
 // display function called by glutMainLoop(), gets executed every frame 
-void disp(void)
+void disp()
 {
 	// if camera has moved, reset the accumulation buffer
 	if (buffer_reset){ cudaMemset(accumulatebuffer, 1, scrwidth * scrheight * sizeof(Vec3f)); framenumber = 0; }
@@ -115,7 +112,7 @@ void disp(void)
 	cudaMemcpy(cudaRendercam, hostRendercam, sizeof(Camera), cudaMemcpyHostToDevice);
 
 	cudaThreadSynchronize();
-	cudaGLMapBufferObject((void**)&finaloutputbuffer, vbo); // maps a buffer object for access by CUDA
+	cudaGLMapBufferObject(reinterpret_cast<void **>(&finaloutputbuffer), vbo); // maps a buffer object for access by CUDA
 
 	glClear(GL_COLOR_BUFFER_BIT); //clear all pixels
 
@@ -131,8 +128,8 @@ void disp(void)
 	glFlush();
   glFinish();
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glVertexPointer(2, GL_FLOAT, 12, 0);
-	glColorPointer(4, GL_UNSIGNED_BYTE, 12, (GLvoid*)8);
+	glVertexPointer(2, GL_FLOAT, 12, nullptr);
+	glColorPointer(4, GL_UNSIGNED_BYTE, 12, reinterpret_cast<GLvoid *>(8));
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
@@ -142,7 +139,7 @@ void disp(void)
 	glutSwapBuffers();
 }
 
-void loadBVHfromCache(FILE* BVHcachefile, const std::string BVHcacheFilename)
+void loadBVHfromCache(FILE* BVHcachefile, const std::string_view BVHcacheFilename)
 {
 	if (1 != fread(&nodeSize, sizeof(unsigned), 1, BVHcachefile)) std::cout << "Error reading BVH cache file!\n";
 	if (1 != fread(&triangle_count, sizeof(unsigned), 1, BVHcachefile)) std::cout << "Error reading BVH cache file!\n";
@@ -155,10 +152,10 @@ void loadBVHfromCache(FILE* BVHcachefile, const std::string BVHcacheFilename)
 	std::cout << "Number of triangles: " << triangle_count << "\n";
 	std::cout << "Number of BVH leafnodes: " << leafnode_count << "\n";
 
-	cpuNodePtr = (Vec4i*)malloc(nodeSize * sizeof(Vec4i));
-	cpuTriWoopPtr = (Vec4i*)malloc(triWoopSize * sizeof(Vec4i));
-	cpuTriDebugPtr = (Vec4i*)malloc(triDebugSize * sizeof(Vec4i));
-	cpuTriIndicesPtr = (S32*)malloc(triIndicesSize * sizeof(S32));
+	cpuNodePtr = static_cast<Vec4i *>(malloc(nodeSize * sizeof(Vec4i)));
+	cpuTriWoopPtr = static_cast<Vec4i *>(malloc(triWoopSize * sizeof(Vec4i)));
+	cpuTriDebugPtr = static_cast<Vec4i *>(malloc(triDebugSize * sizeof(Vec4i)));
+	cpuTriIndicesPtr = static_cast<S32 *>(malloc(triIndicesSize * sizeof(S32)));
 
 	if (nodeSize != fread(cpuNodePtr, sizeof(Vec4i), nodeSize, BVHcachefile)) std::cout << "Error reading BVH cache file!\n";
 	if (triWoopSize != fread(cpuTriWoopPtr, sizeof(Vec4i), triWoopSize, BVHcachefile)) std::cout << "Error reading BVH cache file!\n";
@@ -169,9 +166,9 @@ void loadBVHfromCache(FILE* BVHcachefile, const std::string BVHcacheFilename)
 	std::cout << "Successfully loaded BVH from cache file!\n";
 }
 
-void writeBVHcachefile(FILE* BVHcachefile, const std::string BVHcacheFilename){
+void writeBVHcachefile(FILE* BVHcachefile, const std::string_view BVHcacheFilename){
 
-	BVHcachefile = fopen(BVHcacheFilename.c_str(), "wb");
+	BVHcachefile = fopen(BVHcacheFilename.data(), "wb");
 	if (!BVHcachefile) std::cout << "Error opening BVH cache file!\n";
 	if (1 != fwrite(&nodeSize, sizeof(unsigned), 1, BVHcachefile)) std::cout << "Error writing BVH cache file!\n";
 	if (1 != fwrite(&triangle_count, sizeof(unsigned), 1, BVHcachefile)) std::cout << "Error writing BVH cache file!\n";
@@ -191,12 +188,11 @@ void writeBVHcachefile(FILE* BVHcachefile, const std::string BVHcacheFilename){
 // initialise HDR environment map
 // from https://graphics.stanford.edu/wikis/cs148-11-summer/HDRIlluminator
 
-void initHDR(){
+void initHDR(const std::string_view HDRfile){
 	
-	HDRImage HDRresult;
-	const char* HDRfile = HDRmapname;
+	HDRImage HDRresult{};
 
-	if (HDRLoader::load(HDRfile, HDRresult)) 
+	if (HDRLoader::load(HDRfile.data(), HDRresult))
 		printf("HDR environment map loaded. Width: %d Height: %d\n", HDRresult.width, HDRresult.height);
 	else{ 
 		printf("HDR environment map not found\nAn HDR map is required as light source. Exiting now...\n"); 
@@ -229,27 +225,27 @@ void initCUDAscenedata(){
 	cudaMalloc(&accumulatebuffer, scrwidth * scrheight * sizeof(Vec3f));
 	
 	// allocate GPU memory for interactive camera
-	cudaMalloc((void**)&cudaRendercam, sizeof(Camera));
+	cudaMalloc(reinterpret_cast<void **>(&cudaRendercam), sizeof(Camera));
 
 	// allocate and copy scene databuffers to the GPU (BVH nodes, triangle vertices, triangle indices)
-	cudaMalloc((void**)&cudaNodePtr, nodeSize * sizeof(float4));
+	cudaMalloc(reinterpret_cast<void **>(&cudaNodePtr), nodeSize * sizeof(float4));
 	cudaMemcpy(cudaNodePtr, cpuNodePtr, nodeSize * sizeof(float4), cudaMemcpyHostToDevice);
 
-	cudaMalloc((void**)&cudaTriWoopPtr, triWoopSize * sizeof(float4));
+	cudaMalloc(reinterpret_cast<void **>(&cudaTriWoopPtr), triWoopSize * sizeof(float4));
 	cudaMemcpy(cudaTriWoopPtr, cpuTriWoopPtr, triWoopSize * sizeof(float4), cudaMemcpyHostToDevice);
 
-	cudaMalloc((void**)&cudaTriDebugPtr, triDebugSize * sizeof(float4));
+	cudaMalloc(reinterpret_cast<void **>(&cudaTriDebugPtr), triDebugSize * sizeof(float4));
 	cudaMemcpy(cudaTriDebugPtr, cpuTriDebugPtr, triDebugSize * sizeof(float4), cudaMemcpyHostToDevice);
 
-	cudaMalloc((void**)&cudaTriIndicesPtr, triIndicesSize * sizeof(S32));
+	cudaMalloc(reinterpret_cast<void **>(&cudaTriIndicesPtr), triIndicesSize * sizeof(S32));
 	cudaMemcpy(cudaTriIndicesPtr, cpuTriIndicesPtr, triIndicesSize * sizeof(S32), cudaMemcpyHostToDevice);
 
 	std::cout << "Scene data copied to CUDA\n";
 }
 
-void createBVH(){
+void createBVH(const std::string_view scenefile){
 	
-	load_object(scenefile);
+	load_object(scenefile.data());
 	float maxi2 = processgeo();
 
 	std::cout << "Scene geometry loaded and processed\n";
@@ -331,34 +327,42 @@ void deleteCudaAndCpuMemory(){
 
 int main(int argc, char** argv){
 
+	cxxopts::Options options("CudaPT", "Simple CUDA pathtracer");
+	options.add_options()
+		("f,scenefile", "Filename of Scene to load", cxxopts::value<std::string>()->default_value("../data/dragon.obj"))
+		("hdr,hdrfile","Filename of HDR to load", cxxopts::value<std::string>()->default_value("../data/Topanga_Forest_B_3k.hdr"));
+	const auto results = options.parse(argc, argv);
+	const auto sceneFile = results["scenefile"].as<std::string>();
+	const auto hdrFile = results["hdrfile"].as<std::string>();
+
 	// create a CPU camera
 	hostRendercam = new Camera();
 	// initialise an interactive camera on the CPU side
-	initCamera();	
+	initCamera();
 	interactiveCamera->buildRenderCamera(hostRendercam);
 
-	std::string BVHcacheFilename(scenefile);
-	BVHcacheFilename += ".bvh";  
+	std::string BVHcacheFilename(sceneFile);
+	BVHcacheFilename += ".bvh";
+	FILE* BVHcachefile = nullptr;
+	errno_t error = fopen_s(&BVHcachefile, BVHcacheFilename.c_str(), "rb");
+	if (!BVHcachefile || error){ nocachedBVH = true; }
 
-	FILE* BVHcachefile = fopen(BVHcacheFilename.c_str(), "rb");
-	if (!BVHcachefile){ nocachedBVH = true; }
-	
 	//if (true){ // overrule cache
 	if (nocachedBVH){
 		std::cout << "No cached BVH file available\nCreating new BVH...\n";
 		// initialise all data needed to start rendering (BVH data, triangles, vertices)
-		createBVH();
+		createBVH(sceneFile);
 		// store the BVH in a file
 		writeBVHcachefile(BVHcachefile, BVHcacheFilename);
 	}
 
 	else { // cached BVH available
 		std::cout << "Cached BVH available\nReading " << BVHcacheFilename << "...\n";
-		loadBVHfromCache(BVHcachefile, BVHcacheFilename); 
+		loadBVHfromCache(BVHcachefile, BVHcacheFilename);
 	}
-	
+
 	initCUDAscenedata(); // copy scene data to the GPU, ready to be used by CUDA
-	initHDR(); // initialise the HDR environment map
+	initHDR(hdrFile); // initialise the HDR environment map
 
 	// initialise GLUT
 	glutInit(&argc, argv);
@@ -367,7 +371,6 @@ int main(int argc, char** argv){
 	glutInitWindowSize(scrwidth, scrheight); // specify the initial window size
 	glutCreateWindow("MatchingSocks, CUDA path tracer using SplitBVH"); // create the window and set title
 
-  cudaGLSetGLDevice(0);
   cudaSetDevice(0);
 
 	// initialise OpenGL:

@@ -18,12 +18,14 @@ project(CUDA_PATH_TRACER LANGUAGES CUDA CXX)
 find_package(GLEW REQUIRED)
 find_package(FreeGLUT REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(cxxopts REQUIRED)
 
 
 # include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${GLEW_INCLUDE_DIR})
 include_directories(${FreeGLUT_INCLUDE_DIR})
 include_directories(${OPENGL_INCLUDE_DIR})
+include_directories(${CXXOPTS_INCLUDE_DIR})
 
 set(HEADERS
     Array.h
@@ -61,6 +63,7 @@ set(SOURCES
 add_executable(CUDA_PT ${HEADERS} ${SOURCES})
 set_target_properties(CUDA_PT PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_compile_features(CUDA_PT PUBLIC cxx_std_20)
+target_compile_features(CUDA_PT PUBLIC cuda_std_20)
 
 target_link_libraries(CUDA_PT
 #    ${CUDA_LIBRARIES}
@@ -68,6 +71,7 @@ target_link_libraries(CUDA_PT
     ${FreeGLUT_INCLUDE_DIR}
     $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
     ${OPENGL_LIBRARIES}
+    cxxopts::cxxopts
 )
 
 add_custom_command(

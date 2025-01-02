@@ -1,6 +1,6 @@
 {
-  "dependencies": [
-    "glew",
-    "freeglut"
-  ]
+  "dependencies" : [ "glew", "freeglut", {
+    "name" : "cxxopts",
+    "version>=" : "3.2.1"
+  } ]
 }

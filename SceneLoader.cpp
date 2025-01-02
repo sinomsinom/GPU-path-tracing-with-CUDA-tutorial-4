@@ -1,29 +1,29 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-
 #include <cstdio>
 #include <cstdlib>
+#include <cstdarg>
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <algorithm>
 #include <vector>
 #include <cfloat>
-#include <string.h>
-#include <assert.h>
+#include <cstring>
+#include <string_view>
 
 #include "linear_math.h"
 #include "Geometry.h"
 #include "SceneLoader.h"
+
+#include <filesystem>
 
 
 using std::string;
 
 unsigned verticesNo = 0;
 unsigned trianglesNo = 0;
-Vertex* vertices = NULL;   // vertex list
-Triangle* triangles = NULL;  // triangle list
+Vertex* vertices = nullptr;   // vertex list
+Triangle* triangles = nullptr;  // triangle list
 
  
 struct face {                  
@@ -45,7 +45,7 @@ namespace enums {
 using namespace enums;
 
 // Rescale input objects to have this size...
-const float MaxCoordAfterRescale = 1.2f;
+constexpr float MaxCoordAfterRescale = 1.2f;
 
 // if some file cannot be found, panic and exit
 void panic(const char *fmt, ...)
@@ -68,24 +68,26 @@ struct TriangleMesh
 	Vec3f bounding_box[2];   // mesh bounding box
 };
 
-void load_object(const char *filename)
+void load_object(const std::string_view filename)
 {
 	std::cout << "Loading object..." << std::endl;
-	const char* edot = strrchr(filename, '.');
+	auto path = std::filesystem::absolute(filename);
+	std::cout << path << std::endl;
+	const char* edot = strrchr(filename.data(), '.');
 	if (edot) {
 		edot++;
 
 		// Stanford PLY models
 
 		if (!strcmp(edot, "PLY") || !strcmp(edot, "ply")) { 
-			// Only shadevis generated objects, not full blown parser!
-			std::ifstream file(filename, std::ios::in);
+			// Only shadevis generated objects, not full-blown parser!
+			std::ifstream file(filename.data(), std::ios::in);
 			if (!file) {
 				panic((string("Missing ") + string(filename)).c_str());
 			}
 
-			Vertex *pCurrentVertex = NULL;
-			Triangle *pCurrentTriangle = NULL;
+			Vertex *pCurrentVertex = nullptr;
+			Triangle *pCurrentTriangle = nullptr;
 
 			string line;
 			unsigned totalVertices, totalTriangles, lineNo = 0;
@@ -99,7 +101,7 @@ void load_object(const char *filename)
 						str >> word1;
 						str >> word1;
 						str >> totalVertices;
-						vertices = (Vertex *)malloc(totalVertices*sizeof(Vertex));
+						vertices = static_cast<Vertex *>(malloc(totalVertices * sizeof(Vertex)));
 						verticesNo = totalVertices;
 						pCurrentVertex = vertices;
 					}
@@ -109,7 +111,7 @@ void load_object(const char *filename)
 						str >> word1;
 						str >> word1;
 						str >> totalTriangles;
-						triangles = (Triangle *)malloc(totalTriangles*sizeof(Triangle));
+						triangles = static_cast<Triangle *>(malloc(totalTriangles * sizeof(Triangle)));
 						trianglesNo = totalTriangles;
 						pCurrentTriangle = triangles;
 					}
@@ -170,11 +172,10 @@ void load_object(const char *filename)
 		// this code triangulates models with quads, n-gons and triangle fans
 
 		else if (!strcmp(edot, "obj")) {
+			std::cout << "loading OBJ model: " << filename << "\n";
+			std::ifstream in(filename.data());
+			std::cout << filename << "\n";
 
-			std::cout << "loading OBJ model: " << filename;
-			std::string filenamestring = filename;
-			std::ifstream in(filenamestring.c_str());
-			std::cout << filenamestring << "\n";
 
 			if (!in.good())
 			{
@@ -183,8 +184,8 @@ void load_object(const char *filename)
 				exit(0);
 			}
 
-			Vertex *pCurrentVertex = NULL;
-			Triangle *pCurrentTriangle = NULL;
+			Vertex *pCurrentVertex = nullptr;
+			Triangle *pCurrentTriangle = nullptr;
 			unsigned totalVertices, totalTriangles = 0;
 			TriangleMesh mesh;
 
@@ -236,7 +237,7 @@ void load_object(const char *filename)
 
 					// from here
 					
-					std::ifstream ifs(filenamestring.c_str(), std::ifstream::in);
+					std::ifstream ifs(filename.data(), std::ifstream::in);
 
 					if (!ifs.good())
 					{
@@ -259,7 +260,7 @@ void load_object(const char *filename)
 						float x, y, z;
 						while (!stringstream.eof()) {
 							stringstream >> x >> std::ws >> y >> std::ws >> z >> std::ws;
-							mesh.verts.push_back(Vec3f(x, y, z));
+							mesh.verts.emplace_back(x, y, z);
 						}
 					}
 					else if (key == "vp") { // parameter
@@ -319,7 +320,7 @@ void load_object(const char *filename)
 					int numtriangles = f.vertex.size() - 2; // 1 triangle if 3 vertices, 2 if 4 etc
 
 					for (int i = 0; i < numtriangles; i++){  // first vertex remains the same for all triangles in a triangle fan
-					mesh.faces.push_back(Vec3i(f.vertex[0], f.vertex[i + 1], f.vertex[i + 2]));
+					mesh.faces.emplace_back(f.vertex[0], f.vertex[i + 1], f.vertex[i + 2]);
 					}
 
 					//while (stream >> v_extra) {
