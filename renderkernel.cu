@@ -76,19 +76,19 @@ struct Sphere {
 __constant__ Sphere spheres[] = {
     // sun
     //{ 10000, { 50.0f, 40.8f, -1060 }, { 0.3, 0.3, 0.3 }, { 0.175f, 0.175f, 0.25f }, DIFF }, // sky   0.003, 0.003, 0.003
-    //{ 4.5, { 0.0f, 12.5, 0 }, { 6, 4, 1 }, { .6f, .6f, 0.6f }, DIFF },  /// lightsource
+    { 4.5, { 0.0f, 12.5, 0 }, { 6, 4, 1 }, { .6f, .6f, 0.6f }, DIFF },  /// lightsource
     { 10000.02, { 50.0f, -10001.35, 0 }, { 0.0, 0.0, 0 }, { 0.3f, 0.3f, 0.3f }, DIFF }, // ground  300/-301.0
     //{ 10000, { 50.0f, -10000.1, 0 }, { 0, 0, 0 }, { 0.3f, 0.3f, 0.3f }, DIFF }, // double shell to prevent light leaking
     //{ 110000, { 50.0f, -110048.5, 0 }, { 3.6, 2.0, 0.2 }, { 0.f, 0.f, 0.f }, DIFF },  // horizon brightener
 
-    //{ 0.5, { 30.0f, 180.5, 42 }, { 0, 0, 0 }, { .6f, .6f, 0.6f }, DIFF },  // small sphere 1
-    //{ 0.8, { 2.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, SPEC },  // small sphere 2
-    //{ 0.8, { -3.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.0f, 0.0f, 0.2f }, COAT },  // small sphere 2
+    { 0.5, { 30.0f, 180.5, 42 }, { 0, 0, 0 }, { .6f, .6f, 0.6f }, DIFF },  // small sphere 1
+    { 0.8, { 2.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, SPEC },  // small sphere 2
+    { 0.8, { -3.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.0f, 0.0f, 0.2f }, COAT },  // small sphere 2
 	{ 2.5, { -6.0f, 0.5f, 0.0f }, { 0.0, 0.0, 0.0 }, { 0.9f, 0.9f, 0.9f }, SPEC },  // small sphere 2
-    //{ 0.6, { -10.0f, -2.f, 1.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, DIFF },  // small sphere 2
-    //{ 0.8, { -1.0f, -0.7f, 4.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, REFR },  // small sphere 2
-    //{ 9.4, { 9.0f, 0.f, -9.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.f }, DIFF },  // small sphere 2
-    //{ 22, { 105.0f, 22, 24 }, { 0, 0, 0 }, { 0.9f, 0.9f, 0.9f }, DIFF }, // small sphere 3
+    { 0.6, { -10.0f, -2.f, 1.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, DIFF },  // small sphere 2
+    { 0.8, { -1.0f, -0.7f, 4.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, REFR },  // small sphere 2
+    { 9.4, { 9.0f, 0.f, -9.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.f }, DIFF },  // small sphere 2
+    { 22, { 105.0f, 22, 24 }, { 0, 0, 0 }, { 0.9f, 0.9f, 0.9f }, DIFF }, // small sphere 3
 };
 
 
@@ -420,7 +420,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 }
 
 __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, const float4 rayorig, const float4 raydir,
-    int& hitTriIdx, float& hitdistance, int& debugbingo, Vec3f& trinormal, int leafcount, int tricount, bool anyHit)
+    int& hitTriIdx, float& hitdistance, int& debugbingo, Vec3f& trinormal, unsigned int leafcount, unsigned int  tricount, bool anyHit)
 {
     // assign a CUDA thread to every pixel by using the threadIndex
     // global threadId, see richiesams blogspot
@@ -712,6 +712,183 @@ union Colour  // 4 bytes = 4 chars = 1 float
     uchar4 components;
 };
 
+
+// diffuse material, based on smallpt by Kevin Beason
+__inline__ __device__ void handleDiffuse(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
+    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+{
+
+    // pick two random numbers
+    const float phi = 2 * std::numbers::pi * curand_uniform(randstate);
+    const float r2 = curand_uniform(randstate);
+    const float r2s = sqrtf(r2);
+
+    // compute orthonormal coordinate frame uvw with hitpoint as origin
+    Vec3f w = nl; w.normalize();
+    Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
+    Vec3f v = cross(w, u);
+
+    // compute cosine weighted random ray direction on hemisphere
+    nextdir = u*cosf(phi)*r2s + v*sinf(phi)*r2s + w*sqrtf(1 - r2);
+    nextdir.normalize();
+
+    // offset origin next path segment to prevent self intersection
+    hitpoint += nl * 0.001f; // scene size dependent
+
+    // multiply mask with colour of object
+    mask *= objcol;
+
+}
+
+// Phong metal material from "Realistic Ray Tracing", P. Shirley
+__inline__ __device__ void handleMetal(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
+    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+{
+
+    // compute random perturbation of ideal reflection vector
+    // the higher the phong exponent, the closer the perturbed vector is to the ideal reflection direction
+    float phi = 2 * std::numbers::pi * curand_uniform(randstate);
+    float r2 = curand_uniform(randstate);
+    float phongexponent = 30;
+    float cosTheta = powf(1 - r2, 1.0f / (phongexponent + 1));
+    float sinTheta = sqrtf(1 - cosTheta * cosTheta);
+
+    // create orthonormal basis uvw around reflection vector with hitpoint as origin
+    // w is ray direction for ideal reflection
+    Vec3f w = raydir - n * 2.0f * dot(n, raydir); w.normalize();
+    Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
+    Vec3f v = cross(w, u); // v is already normalised because w and u are normalised
+
+    // compute cosine weighted random ray direction on hemisphere
+    nextdir = u * cosf(phi) * sinTheta + v * sinf(phi) * sinTheta + w * cosTheta;
+    nextdir.normalize();
+
+    // offset origin next path segment to prevent self intersection
+    hitpoint += nl * 0.0001f;  // scene size dependent
+
+    // multiply mask with colour of object
+    mask *= objcol;
+}
+
+// ideal specular reflection (mirror)
+__inline__ __device__ void handleSpecular(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
+    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+{
+    // compute relfected ray direction according to Snell's law
+    nextdir = raydir - n * dot(n, raydir) * 2.0f;
+    nextdir.normalize();
+
+    // offset origin next path segment to prevent self intersection
+    hitpoint += nl * 0.001f;
+
+    // multiply mask with colour of object
+    mask *= objcol;
+}
+
+// COAT material based on https://github.com/peterkutz/GPUPathTracer
+// randomly select diffuse or specular reflection
+// looks okay-ish but inaccurate (no Fresnel calculation yet)
+__inline__ __device__ void handleCoat(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
+    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+{
+    const float rouletteRandomFloat = curand_uniform(randstate);
+    constexpr float threshold = 0.05f;
+    const Vec3f specularColor(1, 1, 1);  // hard-coded
+    const bool reflectFromSurface = (rouletteRandomFloat < threshold); //computeFresnel(make_Vec3f(n.x, n.y, n.z), incident, incidentIOR, transmittedIOR, reflectionDirection, transmissionDirection).reflectionCoefficient);
+
+    if (reflectFromSurface) { // calculate perfectly specular reflection
+
+        // Ray reflected from the surface. Trace a ray in the reflection direction.
+        // TODO: Use Russian roulette instead of simple multipliers!
+        // (Selecting between diffuse sample and no sample (absorption) in this case.)
+
+        mask *= specularColor;
+        nextdir = raydir - n * 2.0f * dot(n, raydir);
+        nextdir.normalize();
+
+        // offset origin next path segment to prevent self intersection
+        hitpoint += nl * 0.001f; // scene size dependent
+    }
+
+    else {  // calculate perfectly diffuse reflection
+
+        const float r1 = 2 * std::numbers::pi * curand_uniform(randstate);
+        const float r2 = curand_uniform(randstate);
+        const float r2s = sqrtf(r2);
+
+        // compute orthonormal coordinate frame uvw with hitpoint as origin
+        Vec3f w = nl; w.normalize();
+        Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
+        const Vec3f v = cross(w, u);
+
+        // compute cosine weighted random ray direction on hemisphere
+        nextdir = u*cosf(r1)*r2s + v*sinf(r1)*r2s + w*sqrtf(1 - r2);
+        nextdir.normalize();
+
+        // offset origin next path segment to prevent self intersection
+        hitpoint += nl * 0.001f;  // // scene size dependent
+
+        // multiply mask with colour of object
+        mask *= objcol;
+    }
+}
+
+// perfectly refractive material (glass, water)
+// set ray_tmin to 0.01 when using refractive material
+__inline__ __device__ void handleRefractive(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
+    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+{
+    const bool into = dot(n, nl) > 0; // is ray entering or leaving refractive material?
+    constexpr float nc = 1.0f;  // Index of Refraction air
+    constexpr float nt = 1.4f;  // Index of Refraction glass/water
+    const float nnt = into ? nc / nt : nt / nc;  // IOR ratio of refractive materials
+    const float ddn = dot(raydir, nl);
+    const float cos2t = 1.0f - nnt*nnt * (1.f - ddn*ddn);
+
+    if (cos2t < 0.0f) // total internal reflection
+    {
+        nextdir = raydir - n * 2.0f * dot(n, raydir);
+        nextdir.normalize();
+
+        // offset origin next path segment to prevent self intersection
+        hitpoint += nl * 0.001f; // scene size dependent
+    }
+    else // cos2t > 0
+    {
+        // compute direction of transmission ray
+        Vec3f tdir = raydir * nnt;
+        tdir -= n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t)));
+        tdir.normalize();
+
+        float R0 = (nt - nc)*(nt - nc) / (nt + nc)*(nt + nc);
+        float c = 1.f - (into ? -ddn : dot(tdir, n));
+        float Re = R0 + (1.f - R0) * c * c * c * c * c;
+        float Tr = 1 - Re; // Transmission
+        float P = .25f + .5f * Re;
+        float RP = Re / P;
+        float TP = Tr / (1.f - P);
+
+        // randomly choose reflection or transmission ray
+        if (curand_uniform(randstate) < 0.2) // reflection ray
+        {
+            mask *= RP;
+            nextdir = raydir - n * 2.0f * dot(n, raydir);
+            nextdir.normalize();
+
+            hitpoint += nl * 0.001f; // scene size dependent
+        }
+        else // transmission ray
+        {
+            mask *= TP;
+            nextdir = tdir;
+            nextdir.normalize();
+
+            hitpoint += nl * 0.001f; // epsilon must be small to avoid artefacts
+        }
+    }
+}
+
+
 __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, curandState* randstate, const float4* HDRmap, const float4* gpuNodes, const float4* gpuTriWoops,
     const float4* gpuDebugTris, const int* gpuTriIndices, Vec3f& rayorig, Vec3f& raydir, unsigned int leafcount, unsigned int tricount)
 {
@@ -728,13 +905,13 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
         float hitSphereDist = 1e20;
         float hitDistance = 1e20;
         float scene_t = 1e20;
-        Vec3f objcol = Vec3f(0, 0, 0);
-        Vec3f emit = Vec3f(0, 0, 0);
+        Vec3f objcol(0, 0, 0);
+        Vec3f emit(0, 0, 0);
         Vec3f hitpoint; // intersection point
         Vec3f n; // normal
         Vec3f nl; // oriented normal
         Vec3f nextdir; // ray direction of next path segment
-        Vec3f trinormal = Vec3f(0, 0, 0);
+        Vec3f trinormal(0, 0, 0);
         Refl_t refltype;
         float ray_tmin = 0.00001f; // set to 0.01f when using refractive material
         float ray_tmax = 1e20;
@@ -848,173 +1025,12 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 
         // basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
 
-        // diffuse material, based on smallpt by Kevin Beason
-        if (refltype == DIFF){
-
-            // pick two random numbers
-            float phi = 2 * std::numbers::pi * curand_uniform(randstate);
-            float r2 = curand_uniform(randstate);
-            float r2s = sqrtf(r2);
-
-            // compute orthonormal coordinate frame uvw with hitpoint as origin
-            Vec3f w = nl; w.normalize();
-            Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
-            Vec3f v = cross(w, u);
-
-            // compute cosine weighted random ray direction on hemisphere
-            nextdir = u*cosf(phi)*r2s + v*sinf(phi)*r2s + w*sqrtf(1 - r2);
-            nextdir.normalize();
-
-            // offset origin next path segment to prevent self intersection
-            hitpoint += nl * 0.001f; // scene size dependent
-
-            // multiply mask with colour of object
-            mask *= objcol;
-
-        } // end diffuse material
-
-        // Phong metal material from "Realistic Ray Tracing", P. Shirley
-        if (refltype == METAL){
-
-            // compute random perturbation of ideal reflection vector
-            // the higher the phong exponent, the closer the perturbed vector is to the ideal reflection direction
-            float phi = 2 * std::numbers::pi * curand_uniform(randstate);
-            float r2 = curand_uniform(randstate);
-            float phongexponent = 30;
-            float cosTheta = powf(1 - r2, 1.0f / (phongexponent + 1));
-            float sinTheta = sqrtf(1 - cosTheta * cosTheta);
-
-            // create orthonormal basis uvw around reflection vector with hitpoint as origin
-            // w is ray direction for ideal reflection
-            Vec3f w = raydir - n * 2.0f * dot(n, raydir); w.normalize();
-            Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
-            Vec3f v = cross(w, u); // v is already normalised because w and u are normalised
-
-            // compute cosine weighted random ray direction on hemisphere
-            nextdir = u * cosf(phi) * sinTheta + v * sinf(phi) * sinTheta + w * cosTheta;
-            nextdir.normalize();
-
-            // offset origin next path segment to prevent self intersection
-            hitpoint += nl * 0.0001f;  // scene size dependent
-
-            // multiply mask with colour of object
-            mask *= objcol;
-        }
-
-        // ideal specular reflection (mirror)
-        if (refltype == SPEC){
-
-            // compute relfected ray direction according to Snell's law
-            nextdir = raydir - n * dot(n, raydir) * 2.0f;
-            nextdir.normalize();
-
-            // offset origin next path segment to prevent self intersection
-            hitpoint += nl * 0.001f;
-
-            // multiply mask with colour of object
-            mask *= objcol;
-        }
-
-
-        // COAT material based on https://github.com/peterkutz/GPUPathTracer
-        // randomly select diffuse or specular reflection
-        // looks okay-ish but inaccurate (no Fresnel calculation yet)
-        if (refltype == COAT){
-
-            float rouletteRandomFloat = curand_uniform(randstate);
-            float threshold = 0.05f;
-            Vec3f specularColor = Vec3f(1, 1, 1);  // hard-coded
-            bool reflectFromSurface = (rouletteRandomFloat < threshold); //computeFresnel(make_Vec3f(n.x, n.y, n.z), incident, incidentIOR, transmittedIOR, reflectionDirection, transmissionDirection).reflectionCoefficient);
-
-            if (reflectFromSurface) { // calculate perfectly specular reflection
-
-                // Ray reflected from the surface. Trace a ray in the reflection direction.
-                // TODO: Use Russian roulette instead of simple multipliers!
-                // (Selecting between diffuse sample and no sample (absorption) in this case.)
-
-                mask *= specularColor;
-                nextdir = raydir - n * 2.0f * dot(n, raydir);
-                nextdir.normalize();
-
-                // offset origin next path segment to prevent self intersection
-                hitpoint += nl * 0.001f; // scene size dependent
-            }
-
-            else {  // calculate perfectly diffuse reflection
-
-                float r1 = 2 * std::numbers::pi * curand_uniform(randstate);
-                float r2 = curand_uniform(randstate);
-                float r2s = sqrtf(r2);
-
-                // compute orthonormal coordinate frame uvw with hitpoint as origin
-                Vec3f w = nl; w.normalize();
-                Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
-                Vec3f v = cross(w, u);
-
-                // compute cosine weighted random ray direction on hemisphere
-				nextdir = u*cosf(r1)*r2s + v*sinf(r1)*r2s + w*sqrtf(1 - r2);
-                nextdir.normalize();
-
-                // offset origin next path segment to prevent self intersection
-                hitpoint += nl * 0.001f;  // // scene size dependent
-
-                // multiply mask with colour of object
-                mask *= objcol;
-            }
-        } // end COAT
-
-        // perfectly refractive material (glass, water)
-        // set ray_tmin to 0.01 when using refractive material
-        if (refltype == REFR){
-
-            bool into = dot(n, nl) > 0; // is ray entering or leaving refractive material?
-            float nc = 1.0f;  // Index of Refraction air
-            float nt = 1.4f;  // Index of Refraction glass/water
-            float nnt = into ? nc / nt : nt / nc;  // IOR ratio of refractive materials
-            float ddn = dot(raydir, nl);
-            float cos2t = 1.0f - nnt*nnt * (1.f - ddn*ddn);
-
-            if (cos2t < 0.0f) // total internal reflection
-            {
-                nextdir = raydir - n * 2.0f * dot(n, raydir);
-                nextdir.normalize();
-
-                // offset origin next path segment to prevent self intersection
-                hitpoint += nl * 0.001f; // scene size dependent
-            }
-            else // cos2t > 0
-            {
-                // compute direction of transmission ray
-                Vec3f tdir = raydir * nnt;
-                tdir -= n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t)));
-                tdir.normalize();
-
-                float R0 = (nt - nc)*(nt - nc) / (nt + nc)*(nt + nc);
-                float c = 1.f - (into ? -ddn : dot(tdir, n));
-                float Re = R0 + (1.f - R0) * c * c * c * c * c;
-                float Tr = 1 - Re; // Transmission
-                float P = .25f + .5f * Re;
-                float RP = Re / P;
-                float TP = Tr / (1.f - P);
-
-                // randomly choose reflection or transmission ray
-                if (curand_uniform(randstate) < 0.2) // reflection ray
-                {
-                    mask *= RP;
-                    nextdir = raydir - n * 2.0f * dot(n, raydir);
-                    nextdir.normalize();
-
-                    hitpoint += nl * 0.001f; // scene size dependent
-                }
-                else // transmission ray
-                {
-                    mask *= TP;
-                    nextdir = tdir;
-                    nextdir.normalize();
-
-                    hitpoint += nl * 0.001f; // epsilon must be small to avoid artefacts
-                }
-            }
+        switch(refltype) {
+            case DIFF:  handleDiffuse   (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
+            case METAL: handleMetal     (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
+            case SPEC:  handleSpecular  (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
+            case COAT:  handleCoat      (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
+            case REFR:  handleRefractive(randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
         }
 
         // set up origin and direction of next path segment
