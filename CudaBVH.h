@@ -95,22 +95,22 @@ public:
 	CudaBVH(CudaBVH& other)        { operator=(other); }
 	~CudaBVH(void);
 
-	BVHLayout   getLayout(void) const            { return m_layout; }
+	BVHLayout      getLayout(void) const          { return m_layout; }
 	Array<Vec4i>&  getNodeBuffer(void)            { return m_nodes; }
 	Array<Vec4i>&  getTriWoopBuffer(void)         { return m_triWoop; }
 	Array<S32>&    getTriIndexBuffer(void)        { return m_triIndex; }
 
-	Vec4i*  getGpuNodes(void)            { return m_gpuNodes; }
-	Vec4i*  getGpuTriWoop(void)         { return m_gpuTriWoop; }
-	Vec4i*  getDebugTri(void)			{ return m_debugTri;  }
+	Vec4i*  getGpuNodes(void)             { return m_gpuNodes; }
+	Vec4i*  getGpuTriWoop(void)           { return m_gpuTriWoop; }
+	Vec4i*  getDebugTri(void)			  { return m_debugTri;  }
 	S32*    getGpuTriIndices(void)        { return m_gpuTriIndices; }
 
 	U32    getGpuNodesSize(void)			{ return m_gpuNodesSize; }
 	U32    getGpuTriWoopSize(void)			{ return m_gpuTriWoopSize; }
 	U32    getDebugTriSize(void)			{ return m_debugTriSize; }
-	U32    getGpuTriIndicesSize(void)        { return m_gpuTriIndicesSize; }
+	U32    getGpuTriIndicesSize(void)       { return m_gpuTriIndicesSize; }
 	U32    getLeafnodeCount(void)			{ return m_leafnodecount; }
-	U32    getTriCount(void)			{ return m_tricount; }
+	U32    getTriCount(void)			    { return m_tricount; }
 
 	// AOS: idx ignored, returns entire buffer
 	// SOA: 0 <= idx < 4, returns one subarray  // idx between 0 and 4
