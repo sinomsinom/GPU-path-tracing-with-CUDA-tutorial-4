@@ -28,36 +28,36 @@ include_directories(${OPENGL_INCLUDE_DIR})
 include_directories(${CXXOPTS_INCLUDE_DIR})
 
 set(HEADERS
-    Array.h
-    BVH.h
-    BVHNode.h
-    Camera.h
-    CudaBVH.h
-    CudaRenderKernel.h
-    Geometry.h
-    HDRloader.h
-    MouseKeyboardInput.h
-    Scene.h
-    SceneLoader.h
-    Sort.h
-    SplitBVHBuilder.h
-    Util.h
-    cutil_math.h
-    linear_math.h
+    src/Array.h
+    src/BVH.h
+    src/BVHNode.h
+    src/Camera.h
+    src/CudaBVH.h
+    src/CudaRenderKernel.h
+    src/Geometry.h
+    src/HDRloader.h
+    src/MouseKeyboardInput.h
+    src/Scene.h
+    src/SceneLoader.h
+    src/Sort.h
+    src/SplitBVHBuilder.h
+    src/Util.h
+    src/cutil_math.h
+    src/linear_math.h
 )
 
 set(SOURCES
-    BVH.cpp
-    BVHNode.cpp
-    Camera.cpp
-    CudaBVH.cpp
-    HDRloader.cpp
-    main.cpp
-    renderkernel.cu
-    SceneLoader.cpp
-    Sort.cpp
-    SplitBVHBuilder.cpp
-    Util.cpp
+    src/BVH.cpp
+    src/BVHNode.cpp
+    src/Camera.cpp
+    src/CudaBVH.cpp
+    src/HDRloader.cpp
+    src/main.cpp
+    src/renderkernel.cu
+    src/SceneLoader.cpp
+    src/Sort.cpp
+    src/SplitBVHBuilder.cpp
+    src/Util.cpp
 )
 
 add_executable(CUDA_PT ${HEADERS} ${SOURCES})
@@ -66,7 +66,6 @@ target_compile_features(CUDA_PT PUBLIC cxx_std_20)
 target_compile_features(CUDA_PT PUBLIC cuda_std_20)
 
 target_link_libraries(CUDA_PT
-#    ${CUDA_LIBRARIES}
     ${GLEW_LIBRARIES}
     ${FreeGLUT_INCLUDE_DIR}
     $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
