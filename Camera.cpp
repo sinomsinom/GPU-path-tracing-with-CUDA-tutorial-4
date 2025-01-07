@@ -1,5 +1,5 @@
 // code for depth-of-field, mouse + keyboard user interaction based on https://github.com/peterkutz/GPUPathTracer
-#include <math.h>
+#include <cmath>
 #include "Camera.h"
 #include "CudaRenderKernel.h"
 #include <numbers>

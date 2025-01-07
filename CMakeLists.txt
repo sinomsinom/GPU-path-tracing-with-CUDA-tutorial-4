@@ -14,14 +14,14 @@ endif()
 
 project(CUDA_PATH_TRACER LANGUAGES CUDA CXX)
 
-# find_package(CUDA REQUIRED)
+# Finds the required Dependencies
 find_package(GLEW REQUIRED)
 find_package(FreeGLUT REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(cxxopts REQUIRED)
 
 
-# include_directories(${CUDA_INCLUDE_DIRS})
+# Includes the required dependencies
 include_directories(${GLEW_INCLUDE_DIR})
 include_directories(${FreeGLUT_INCLUDE_DIR})
 include_directories(${OPENGL_INCLUDE_DIR})
