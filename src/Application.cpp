@@ -5,6 +5,7 @@
 #include "Application.h"
 
 #include <cuda_gl_interop.h>
+#include <filesystem>
 #include <iostream>
 #include <string_view>
 
@@ -15,7 +16,7 @@
 #include "linear_math.h"
 #include "Util.h"
 
-constexpr bool alwaysRerender = false;
+constexpr bool alwaysRebuild = false;
 
 void Application::loadBVHfromCache(FILE* BVHcachefile)
 {
@@ -29,9 +30,12 @@ void Application::loadBVHfromCache(FILE* BVHcachefile)
 	readData(&triDebugSize,1);
 	readData(&triIndicesSize,1);
 
-	std::cout << "Number of nodes: " << nodeSize << "\n";
-	std::cout << "Number of triangles: " << triangle_count << "\n";
-	std::cout << "Number of BVH leafnodes: " << leafnode_count << "\n";
+	std::cout << "Number of nodes:          " << nodeSize		<< "\n";
+	std::cout << "Number of triangles:      " << triangle_count << "\n";
+	std::cout << "Number of BVH leafnodes:  " << leafnode_count << "\n";
+	std::cout << "Number of triWoops:       " << triWoopSize	<< "\n";
+	std::cout << "Number of Debugtriangles: " << triDebugSize	<< "\n";
+	std::cout << "Number of indices:        " << triIndicesSize << "\n";
 
 	cpuNodePtr = static_cast<Vec4i *>(malloc(nodeSize * sizeof(Vec4i)));
 	cpuTriWoopPtr = static_cast<Vec4i *>(malloc(triWoopSize * sizeof(Vec4i)));
@@ -56,6 +60,8 @@ void Application::writeBVHcachefile(FILE* BVHcachefile, const std::string_view B
 	const auto writeData = [BVHcachefile]<typename T>(T const *out, size_t elementCount) {
 		if (elementCount != fwrite(out, sizeof(T), elementCount, BVHcachefile)) std::cout << "Error writing BVH cache file!\n";
 	};
+
+	writeData(&nodeSize,1);
 	writeData(&triangle_count,1);
 	writeData(&leafnode_count,1);
 	writeData(&triWoopSize,1);
@@ -197,10 +203,11 @@ Application::Application(const std::string_view sceneFile, const std::string_vie
 	BVHcacheFilename += ".bvh";
 	FILE* BVHcachefile = nullptr;
 	errno_t error = fopen_s(&BVHcachefile, BVHcacheFilename.c_str(), "rb");
+	std::cout << "Loading: " << BVHcachefile << ", " << BVHcacheFilename << "\n";
 	if (!BVHcachefile || error){ nocachedBVH = true; }
 
 
-	if constexpr (alwaysRerender) {
+	if constexpr (alwaysRebuild) {
 		nocachedBVH = true;
 	}
 	if (nocachedBVH){
