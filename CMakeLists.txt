@@ -44,6 +44,8 @@ set(HEADERS
     src/Util.h
     src/cutil_math.h
     src/linear_math.h
+    src/Application.h
+    src/handlerror.h
 )
 
 set(SOURCES
@@ -58,6 +60,7 @@ set(SOURCES
     src/Sort.cpp
     src/SplitBVHBuilder.cpp
     src/Util.cpp
+    src/Application.cpp
 )
 
 add_executable(CUDA_PT ${HEADERS} ${SOURCES})

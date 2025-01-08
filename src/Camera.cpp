@@ -17,7 +17,7 @@ InteractiveCamera::InteractiveCamera()
 	fov = Vec2f(40, 40);
 }
 
-InteractiveCamera::~InteractiveCamera() {}
+InteractiveCamera::~InteractiveCamera() = default;
 
 void InteractiveCamera::changeYaw(float m){
 	yaw += m;
@@ -93,7 +93,7 @@ void InteractiveCamera::setFOVX(float fovx){
 	// resolution float division
 }
 
-void InteractiveCamera::buildRenderCamera(Camera* renderCamera){
+void InteractiveCamera::buildRenderCamera(Camera& renderCamera){
 	float xDirection = sin(yaw) * cos(pitch);
 	float yDirection = sin(pitch);
 	float zDirection = cos(yaw) * cos(pitch);
@@ -103,13 +103,13 @@ void InteractiveCamera::buildRenderCamera(Camera* renderCamera){
 	//Vec3f eyePosition = centerPosition; // rotate camera from stationary viewpoint
 
 
-	renderCamera->position = eyePosition;
-	renderCamera->view = viewDirection;
-	renderCamera->up = Vec3f(0, 1, 0);
-	renderCamera->resolution = Vec2f(resolution.x, resolution.y);
-	renderCamera->fov = Vec2f(fov.x, fov.y);
-	renderCamera->apertureRadius = apertureRadius;
-	renderCamera->focalDistance = focalDistance;
+	renderCamera.position = eyePosition;
+	renderCamera.view = viewDirection;
+	renderCamera.up = Vec3f(0, 1, 0);
+	renderCamera.resolution = Vec2f(resolution.x, resolution.y);
+	renderCamera.fov = Vec2f(fov.x, fov.y);
+	renderCamera.apertureRadius = apertureRadius;
+	renderCamera.focalDistance = focalDistance;
 }
 
 float mod(float x, float y) { // Does this account for -y ???

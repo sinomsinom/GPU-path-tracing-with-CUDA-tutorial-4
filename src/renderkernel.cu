@@ -5,7 +5,6 @@
 #include "cutil_math.h" // required for float3
 #include <cstdio>
 #include <channel_descriptor.h>
-#include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
@@ -16,14 +15,7 @@
 #include <texture_indirect_functions.h>
 #include <numbers>
 
-// Macro for checking cuda errors following a cuda launch or api call
-#define cudaCheckError( e )                                                                     \
-    {                                                                                       \
-        if (e != cudaSuccess) {                                                              \
-            printf("Cuda failure %s:%d: '%s'\n", __FILE__, __LINE__, cudaGetErrorString(e)); \
-            exit(0);                                                                         \
-        }                                                                                    \
-    }
+#include "handlerror.h"
 
 constexpr auto STACK_SIZE = 64; // Size of the traversal stack in local memory.
 constexpr auto TWO_PI = 6.2831853071795864769252867665590057683943f;

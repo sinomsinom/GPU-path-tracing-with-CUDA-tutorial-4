@@ -1,6 +1,6 @@
 #pragma once
 
-#include <math.h>
+#include <cmath>
 #include <cuda_runtime.h> // for __host__  __device__
 
 #define FW_ASSERT(X) ((void)0) 
