@@ -88,11 +88,20 @@ inline void motion(InteractiveCamera& interactiveCamera, int x, int y)
 	}
 }
 
-inline void mouse(InteractiveCamera& interactiveCamera, int button, int state, int x, int y)
+inline void zoom(InteractiveCamera& interactiveCamera, const float zoom) {
+	interactiveCamera.changeFocalDistance(zoom);
+		buffer_reset = true;
+}
+
+inline void mouse(InteractiveCamera& interactiveCamera, const int button, const int state, const int x, int const y)
 {
 	theButtonState = button;
 	theModifierState = glutGetModifiers();
 	lastX = x;
 	lastY = y;
+	if (button == 3) // UP
+		zoom(interactiveCamera, 0.1f );
+	else if (button == 4) // DOWN
+		zoom(interactiveCamera, -0.1f );
 	motion(interactiveCamera, x, y);
 }
