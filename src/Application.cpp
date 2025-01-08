@@ -21,7 +21,7 @@ constexpr bool alwaysRebuild = false;
 void Application::loadBVHfromCache(FILE* BVHcachefile)
 {
 	const auto readData = [BVHcachefile]<typename T>(T *in, size_t elementCount) {
-		if (elementCount != fread(in, sizeof(unsigned), elementCount, BVHcachefile)) std::cout << "Error reading BVH cache file!\n";
+		if (elementCount != fread(in, sizeof(T), elementCount, BVHcachefile)) std::cout << "Error reading BVH cache file!\n";
 	};
 	readData(&nodeSize,1);
 	readData(&triangle_count,1);
