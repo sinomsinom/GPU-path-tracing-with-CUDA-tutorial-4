@@ -29,7 +29,7 @@ constexpr auto HDRwidth = 3200;
 constexpr auto HDRheight = 1600;
 #define HDR
 
-enum Refl_t { DIFF, METAL, SPEC, REFR, COAT };  // material types
+enum Refl_t { DIFF, METAL, SPEC, REFR, COAT, DIEL };  // material types
 
 // CUDA textures containing scene data
 cudaTextureObject_t bvhNodesTextureObj;
@@ -78,8 +78,9 @@ __constant__ Sphere spheres[] = {
     { 0.8, { 2.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, SPEC },  // small sphere 2
     { 0.8, { -3.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.0f, 0.0f, 0.2f }, COAT },  // small sphere 2
 	{ 2.5, { -6.0f, 0.5f, 0.0f }, { 0.0, 0.0, 0.0 }, { 0.9f, 0.9f, 0.9f }, SPEC },  // small sphere 2
-    { 0.6, { -10.0f, -2.f, 1.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, DIFF },  // small sphere 2
+    // { 0.6, { -10.0f, -2.f, 1.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, DIFF },  // small sphere 2
     { 0.8, { -1.0f, -0.7f, 4.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, REFR },  // small sphere 2
+    { 0.8, { -0.0f, 0.5f, 5.f }, { 0.0, 0.0, 0.0 }, { 1.0f, 0.2f, 0.8f }, DIEL },  // small sphere 2
     { 9.4, { 9.0f, 0.f, -9.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.f }, DIFF },  // small sphere 2
     { 22, { 105.0f, 22, 24 }, { 0, 0, 0 }, { 0.9f, 0.9f, 0.9f }, DIFF }, // small sphere 3
 };
@@ -875,10 +876,78 @@ __inline__ __device__ void handleRefractive(curandState *randstate, Vec3f& nextd
             mask *= TP;
             nextdir = tdir;
             nextdir.normalize();
-
-            hitpoint += nl * 0.001f; // epsilon must be small to avoid artefacts
+            hitpoint += nl * 0.0000001f; // epsilon must be VERY small to avoid artefacts
         }
     }
+}
+
+
+__inline__ __device__ bool refract(const Vec3f& v_in, const Vec3f& n, const float ni_over_nt, Vec3f& refracted) {
+    Vec3f uv = v_in; uv.normalize();
+    const float dt = dot(uv, n);
+    const float discriminant = 1.f - ni_over_nt * ni_over_nt*(1-dt*dt);
+    if (discriminant < 0.f) {
+        return false;
+    } else {
+        refracted = ((uv - n * dt) * ni_over_nt)-(n*sqrt(discriminant));
+        return true;
+    }
+}
+
+__inline__ __device__ float schlick( const float cosine, const float eta1, const float eta2) {
+    float r0 = (eta1 - eta2) / (eta1 + eta2);
+    r0 = r0 * r0;
+     const float r1 =  (1.f - cosine);
+    const float r2 = r1 * r1;
+    return r0 + (1.f - r0) * r1 * r2 * r2;
+    // return r0 + (1.f - r0)*pow(1.f - cosine, 5.f);
+}
+
+inline __host__ __device__ Vec3f reflect(const Vec3f& in, const Vec3f& normal)
+{
+    return in - (normal * dot(normal, in) * 2.f);
+}
+
+
+__inline__ __device__ void handleDielectric(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
+    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol ) {
+    float eta_in;           // eta incident
+    float eta_tr;           // eta transmitted
+    float cosine;
+
+    if (dot(raydir, n) > 0.f) {
+        eta_in = 1.4f;
+        eta_tr = 1.f;
+        cosine = dot(raydir, n) / raydir.length();
+    } else {
+        eta_in = 1.f;
+        eta_tr = 1.4f;
+        cosine = dot(-raydir, n) / raydir.length();
+    }
+
+    Vec3f refracted;
+    float reflect_prob;
+    const float eta = eta_in/eta_tr;
+    if (refract(raydir, nl, eta, refracted)) {
+        if (eta_in > eta_tr) {
+            cosine = sqrt(1.f - eta*eta * (1.f - cosine*cosine));
+        }
+        reflect_prob = schlick(cosine, eta_in, eta_tr);
+    }
+    else {
+        reflect_prob = 1.f;
+    }
+
+    if (curand_uniform(randstate) < reflect_prob) {
+        const Vec3f reflected = reflect(raydir, n);
+        nextdir = reflected;
+        nextdir.normalize();
+        hitpoint += nl * 0.001f;
+    } else {
+        nextdir = refracted;
+        hitpoint += nl * 0.00000001f;
+    }
+    mask *= objcol;
 }
 
 
@@ -889,7 +958,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
     Vec3f accucolor = Vec3f(0.0f, 0.0f, 0.0f); // accumulated colour
     Vec3f direct = Vec3f(0, 0, 0);
 
-    for (int bounces = 0; bounces < 4; bounces++){  // iteration up to 4 bounces (instead of recursion in CPU code)
+    for (int bounces = 0; bounces < 16; bounces++){  // iteration up to 4 bounces (instead of recursion in CPU code)
 
         int hitSphereIdx = -1;
         int hitTriIdx = -1;
@@ -926,11 +995,14 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
         float3 rayorig_flt3 = make_float3(rayorig.x, rayorig.y, rayorig.z);
         float3 raydir_flt3 = make_float3(raydir.x, raydir.y, raydir.z);
 
-        float numspheres = sizeof(spheres) / sizeof(Sphere);
-        for (int i = int(numspheres); i--;)  // for all spheres in scene
+        int numspheres = sizeof(spheres) / sizeof(Sphere);
+        for (int i = numspheres; i--;) // for all spheres in scene
+        {
             // keep track of distance from origin to closest intersection point
-            if ((hitSphereDist = spheres[i].intersect(Ray(rayorig_flt3, raydir_flt3))) && hitSphereDist < scene_t && hitSphereDist > 0.01f){
+            hitSphereDist = spheres[i].intersect(Ray(rayorig_flt3, raydir_flt3));
+            if (hitSphereDist != 0.0f && hitSphereDist < scene_t && hitSphereDist > 0.01f){
                 scene_t = hitSphereDist; hitSphereIdx = i; geomtype = 1; }
+        }
 
         if (hitDistance < scene_t && hitDistance > ray_tmin) // triangle hit
         {
@@ -991,7 +1063,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             hitpoint = rayorig + raydir * scene_t;  // intersection point on object
 			n = Vec3f(hitpoint.x - hitsphere.pos.x, hitpoint.y - hitsphere.pos.y, hitpoint.z - hitsphere.pos.z);	// normal
             n.normalize();
-            nl = dot(n, raydir) < 0 ? n : n * -1; // correctly oriented normal
+            nl = dot(n, raydir) < 0 ? n : -n; // correctly oriented normal
 			objcol = Vec3f(hitsphere.col.x, hitsphere.col.y, hitsphere.col.z);   // object colour
 			emit = Vec3f(hitsphere.emi.x, hitsphere.emi.y, hitsphere.emi.z);  // object emission
             refltype = hitsphere.refl;
@@ -1007,10 +1079,11 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             // float4 normal = tex1Dfetch(triNormalsTexture, pBestTriIdx);
             n = trinormal;
             n.normalize();
-			nl = dot(n, raydir) < 0 ? n : n * -1;  // correctly oriented normal
+			nl = dot(n, raydir) < 0 ? n : -n;  // correctly oriented normal
 			//Vec3f colour = hitTriIdx->_colorf;
-            Vec3f colour = Vec3f(0.9f, 0.3f, 0.0f); // hardcoded triangle colour  .9f, 0.3f, 0.0f
-            refltype = COAT; // objectmaterial
+            // Vec3f colour = Vec3f(0.9f, 0.3f, 0.0f); // hardcoded triangle colour  .9f, 0.3f, 0.0f
+		    Vec3f colour = Vec3f( 0.3f, 0.7f, 0.0f ); // refract colour
+            refltype = DIEL; // objectmaterial
             objcol = colour;
             emit = Vec3f(0.0, 0.0, 0);  // object emission
             accucolor += (mask * emit);
@@ -1024,6 +1097,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             case SPEC:  handleSpecular  (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
             case COAT:  handleCoat      (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
             case REFR:  handleRefractive(randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
+            case DIEL:  handleDielectric(randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
         }
 
         // set up origin and direction of next path segment
