@@ -106,7 +106,7 @@ public:
 	 * @param renderer_
 	 */
 	static void registerRenderer(Application* renderer_) {
-		if (renderer == nullptr) {
+		if (renderer_ == nullptr) {
 			std::cerr << "Renderer was not set!\n";
 			std::exit(EXIT_FAILURE);
 		}
