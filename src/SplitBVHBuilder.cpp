@@ -43,12 +43,6 @@ SplitBVHBuilder::SplitBVHBuilder(BVH& bvh, const BVH::BuildParams& params)
 
 //------------------------------------------------------------------------
 
-SplitBVHBuilder::~SplitBVHBuilder(void)
-{
-}
-
-//------------------------------------------------------------------------
-
 BVHNode* SplitBVHBuilder::run(void)  /// returns the rootnode
 {
 

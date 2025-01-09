@@ -83,7 +83,7 @@ private:
 
 public:
 	SplitBVHBuilder(BVH& bvh, const BVH::BuildParams& params);
-	~SplitBVHBuilder(void);
+	~SplitBVHBuilder() = default;
 
 	BVHNode*                run(void);
 

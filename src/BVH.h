@@ -72,7 +72,7 @@ public:
 
 		BuildParams(void)
 		{
-			stats = NULL;
+			stats = nullptr;
 			enablePrints = true;
 			splitAlpha = 1.0e-5f;
 		}

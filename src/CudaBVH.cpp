@@ -110,7 +110,7 @@ struct StackEntry
     const BVHNode*  node;
     S32             idx;
 
-    StackEntry(const BVHNode* n = NULL, int i = 0) : node(n), idx(i) {}
+    StackEntry(const BVHNode* n = nullptr, int i = 0) : node(n), idx(i) {}
 };
 }
 
@@ -122,7 +122,7 @@ void CudaBVH::createCompact(const BVH& bvh, int nodeOffsetSizeDiv)
 
 	// construct and initialize data arrays which will be copied to CudaBVH buffers (last part of this function). 
 
-	Array<Vec4i> nodeData(NULL, 4); 
+	Array<Vec4i> nodeData(nullptr, 4);
 	Array<Vec4i> triWoopData;
 	Array<Vec4i> triDebugData; // array for regular (non-woop) triangles
 	Array<S32> triIndexData;
@@ -157,7 +157,7 @@ void CudaBVH::createCompact(const BVH& bvh, int nodeOffsetSizeDiv)
 				
 				// push the current child on the stack
 				stack.add(StackEntry(child, nodeData.getSize()));   
-				nodeData.add(NULL, 4); /// adds 4 * Vec4i per inner node or 4 * 16 bytes/Vec4i = 64 bytes of empty data per inner node
+				nodeData.add(nullptr, 4); /// adds 4 * Vec4i per inner node or 4 * 16 bytes/Vec4i = 64 bytes of empty data per inner node
 				continue; // process remaining childnode (if any)
 			}
 

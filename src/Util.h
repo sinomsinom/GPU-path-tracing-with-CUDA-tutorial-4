@@ -32,21 +32,20 @@
 #include <ctime>
 
 
-#define FW_F32_MIN          (1.175494351e-38f)
-#define FW_F32_MAX          (3.402823466e+38f)
-#define NULL 0
+constexpr float FW_F32_MAX = std::numeric_limits<float>::max();
+constexpr float FW_F32_MIN = std::numeric_limits<float>::min();
 #define FW_ASSERT(X) ((void)0)  
 
-typedef unsigned char U8;
-typedef unsigned short U16;
-typedef unsigned int U32;
-typedef unsigned long U64;
-typedef signed char S8;
-typedef signed short S16;
-typedef signed int S32;
-typedef signed long S64;
-typedef float F32;
-typedef double F64;
+using U8  = uint8_t ;
+using U16 = uint16_t ;
+using U32 = uint32_t ;
+using U64 = uint64_t ;
+using S8  = int8_t ;
+using S16 = int16_t ;
+using S32 = int32_t ;
+using S64 = int64_t ;
+using F32 = float;
+using F64 = double;
 
 inline F32          bitsToFloat(U32 a)         { return *(F32*)&a; }
 inline U32          floatToBits(F32 a)         { return *(U32*)&a; }

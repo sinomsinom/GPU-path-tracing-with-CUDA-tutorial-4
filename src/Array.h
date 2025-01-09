@@ -28,7 +28,7 @@
 #pragma once
 #include <cmath>
 #include "linear_math.h"
-#include <string.h>
+#include <cstring>
 #include "Util.h"
 
 
@@ -77,8 +77,8 @@ public:
     void            setRange(int start, const Array<T>& other)  { setRange(start, start + other.getSize(), other.getPtr()); }
     Array<T>        getRange(int start, int end) const          { FW_ASSERT(end <= m_size); return Array<T>(getPtr(start), end - start); }
 
-    T&              add(void)                                   { return *add(NULL, 1); }
-    T&              add(const T& item)                          { T* slot = add(NULL, 1); *slot = item; return *slot; }
+    T&              add(void)                                   { return *add(nullptr, 1); }
+    T&              add(const T& item)                          { T* slot = add(nullptr, 1); *slot = item; return *slot; }
     T*              add(const T* ptr, int size)                 { int oldSize = getSize(); resize(oldSize + size); T* slot = getPtr(oldSize); if (ptr) copy(slot, ptr, size); return slot; }
     T*              add(const Array<T>& other)                  { return replace(getSize(), getSize(), other); }
 
@@ -123,7 +123,7 @@ public:
     static void     copyOverlap(T* dst, const T* src, int size);
 
 private:
-    void            init(void)                          { m_ptr = NULL; m_size = 0; m_alloc = 0; }
+    void            init(void)                          { m_ptr = nullptr; m_size = 0; m_alloc = 0; }
     void            realloc(int size);
 
 private:
@@ -279,7 +279,7 @@ template <class T> void Array<T>::realloc(int size)
 {
     FW_ASSERT(size >= 0);
 
-    T* newPtr = NULL;
+    T* newPtr = nullptr;
     if (size)
     {
         newPtr = new T[size];

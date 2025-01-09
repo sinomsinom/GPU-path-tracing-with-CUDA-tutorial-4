@@ -115,7 +115,7 @@ public:
 
 	bool        isLeaf() const                  { return true; }
 	S32         getNumChildNodes() const        { return 0; }  // leafnode has 0 children
-	BVHNode*    getChildNode(S32) const         { return NULL; }
+	BVHNode*    getChildNode(S32) const         { return nullptr; }
 
 	S32         getNumTriangles() const         { return m_hi - m_lo; }
 	S32         m_lo;  // lower index in triangle list

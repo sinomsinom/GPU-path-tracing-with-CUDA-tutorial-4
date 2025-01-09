@@ -9,9 +9,9 @@ from http://www.flipcode.com/archives/HDR_Image_Reader.shtml
 
 #include "HDRloader.h"
 
-#include <math.h>
-#include <memory.h>
-#include <stdio.h>
+#include <cmath>
+#include <cstring>
+#include <cstdio>
 
 typedef unsigned char RGBE[4];
 #define R			0
