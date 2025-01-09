@@ -1,10 +1,9 @@
 // code for depth-of-field, mouse + keyboard user interaction based on https://github.com/peterkutz/GPUPathTracer
 #include <cmath>
 #include "Camera.h"
-#include "CudaRenderKernel.h"
 #include <numbers>
 
-InteractiveCamera::InteractiveCamera()
+InteractiveCamera::InteractiveCamera(const int scrwidth, const int scrheight)
 {
 	centerPosition = Vec3f(0, 0, 0);
 	yaw = 0;
@@ -13,93 +12,93 @@ InteractiveCamera::InteractiveCamera()
 	apertureRadius = 0.04; 
 	focalDistance = 4.0f;
 
-	resolution = Vec2f(scrwidth, scrheight);  
+	resolution = Vec2f(static_cast<float>(scrwidth), static_cast<float>(scrheight));
 	fov = Vec2f(40, 40);
 }
 
 InteractiveCamera::~InteractiveCamera() = default;
 
-void InteractiveCamera::changeYaw(float m){
+void InteractiveCamera::changeYaw(const float m){
 	yaw += m;
 	fixYaw();
 }
 
-void InteractiveCamera::changePitch(float m){
+void InteractiveCamera::changePitch(const float m){
 	pitch += m;
 	fixPitch();
 }
 
-void InteractiveCamera::changeRadius(float m){
+void InteractiveCamera::changeRadius(const float m){
 	radius += radius * m; // Change proportional to current radius. Assuming radius isn't allowed to go to zero.
 	fixRadius();
 }
 
-void InteractiveCamera::changeAltitude(float m){
+void InteractiveCamera::changeAltitude(const float m){
 	centerPosition.y += m;
 	//fixCenterPosition();
 }
 
-void InteractiveCamera::goForward(float m){
+void InteractiveCamera::goForward(const float m){
 	centerPosition += viewDirection * m;
 }
 
-void InteractiveCamera::strafe(float m){
+void InteractiveCamera::strafe(const float m){
 	Vec3f strafeAxis = cross(viewDirection, Vec3f(0, 1, 0));
 	strafeAxis.normalize();
 	centerPosition += strafeAxis * m;
 }
 
-void InteractiveCamera::rotateRight(float m){
+void InteractiveCamera::rotateRight(const float m){
 	float yaw2 = yaw;
 	yaw2 += m;
-	float pitch2 = pitch;
-	float xDirection = sin(yaw2) * cos(pitch2);
-	float yDirection = sin(pitch2);
-	float zDirection = cos(yaw2) * cos(pitch2);
-	Vec3f directionToCamera = Vec3f(xDirection, yDirection, zDirection);
+	const float pitch2 = pitch;
+	const float xDirection = sin(yaw2) * cos(pitch2);
+	const float yDirection = sin(pitch2);
+	const float zDirection = cos(yaw2) * cos(pitch2);
+	const Vec3f directionToCamera(xDirection, yDirection, zDirection);
 	viewDirection = directionToCamera * (-1.0);
 }
 
-void InteractiveCamera::changeApertureDiameter(float m){
-	apertureRadius += (apertureRadius + 0.01) * m; // Change proportional to current apertureRadius.
+void InteractiveCamera::changeApertureDiameter(const float m){
+	apertureRadius += static_cast<float>((apertureRadius + 0.01) * m); // Change proportional to current apertureRadius.
 	fixApertureRadius();
 }
 
 
-void InteractiveCamera::changeFocalDistance(float m){
+void InteractiveCamera::changeFocalDistance(const float m){
 	focalDistance += m;
 	fixFocalDistance();
 }
 
 
-void InteractiveCamera::setResolution(float x, float y){
+void InteractiveCamera::setResolution(const float x, const float y){
 	resolution = Vec2f(x, y);
 	setFOVX(fov.x);
 }
 
-float radiansToDegrees(float radians) {
-    float degrees = radians * 180.0 / std::numbers::pi;
+float radiansToDegrees(const float radians) {
+	const auto degrees = static_cast<float>(radians * 180.0 / std::numbers::inv_pi);
 	return degrees;
 }
 
-float degreesToRadians(float degrees) {
-    float radians = degrees / 180.0 * std::numbers::pi;
+float degreesToRadians(const float degrees) {
+	const auto radians = static_cast<float>(degrees / 180.0 * std::numbers::pi);
 	return radians;
 }
 
-void InteractiveCamera::setFOVX(float fovx){
+void InteractiveCamera::setFOVX(const float fovx){
 	fov.x = fovx;
-	fov.y = radiansToDegrees(atan(tan(degreesToRadians(fovx) * 0.5) * (resolution.y / resolution.x)) * 2.0);
+	fov.y = radiansToDegrees(static_cast<float>(std::atan(tan(degreesToRadians(fovx) * 0.5) * (resolution.y / resolution.x)) * 2.0));
 	// resolution float division
 }
 
 void InteractiveCamera::buildRenderCamera(Camera& renderCamera){
-	float xDirection = sin(yaw) * cos(pitch);
-	float yDirection = sin(pitch);
-	float zDirection = cos(yaw) * cos(pitch);
-	Vec3f directionToCamera = Vec3f(xDirection, yDirection, zDirection);
+	const float xDirection = std::sin(yaw) * std::cos(pitch);
+	const float yDirection = std::sin(pitch);
+	const float zDirection = std::cos(yaw) * std::cos(pitch);
+	const Vec3f directionToCamera(xDirection, yDirection, zDirection);
 	viewDirection = directionToCamera * (-1.0);
-	Vec3f eyePosition = centerPosition + directionToCamera * radius;
+	const Vec3f eyePosition = centerPosition + directionToCamera * radius;
 	//Vec3f eyePosition = centerPosition; // rotate camera from stationary viewpoint
 
 
@@ -112,7 +111,7 @@ void InteractiveCamera::buildRenderCamera(Camera& renderCamera){
 	renderCamera.focalDistance = focalDistance;
 }
 
-float mod(float x, float y) { // Does this account for -y ???
+float mod(const float x, const float y) { // Does this account for -y ???
 	return x - y * floorf(x / y);
 }
 
@@ -120,32 +119,32 @@ void InteractiveCamera::fixYaw() {
     yaw = mod(yaw, 2 * std::numbers::pi); // Normalize the yaw.
 }
 
-float clamp2(float n, float low, float high) {
+float clamp2(float n, const float low, const float high) {
 	n = fminf(n, high);
 	n = fmaxf(n, low);
 	return n;
 }
 
 void InteractiveCamera::fixPitch() {
-	float padding = 0.05;
-	pitch = clamp2(pitch, -PI_OVER_TWO + padding, PI_OVER_TWO - padding); // Limit the pitch.
+	constexpr float padding = 0.05;
+	pitch = clamp2(pitch, -(std::numbers::pi / 2) + padding, (std::numbers::pi / 2) - padding); // Limit the pitch.
 }
 
 void InteractiveCamera::fixRadius() {
-	float minRadius = 0.2;
-	float maxRadius = 100.0;
+	constexpr float minRadius = 0.2;
+	constexpr float maxRadius = 100.0;
 	radius = clamp2(radius, minRadius, maxRadius);
 }
 
 void InteractiveCamera::fixApertureRadius() {
-	float minApertureRadius = 0.0;
-	float maxApertureRadius = 25.0;
+	constexpr float minApertureRadius = 0.0;
+	constexpr float maxApertureRadius = 25.0;
 	apertureRadius = clamp2(apertureRadius, minApertureRadius, maxApertureRadius);
 }
 
 void InteractiveCamera::fixFocalDistance() {
-	float minFocalDist = 0.2;
-	float maxFocalDist = 100.0;
+	constexpr float minFocalDist = 0.2;
+	constexpr float maxFocalDist = 100.0;
 	focalDistance = clamp2(focalDistance, minFocalDist, maxFocalDist);
 }
 
