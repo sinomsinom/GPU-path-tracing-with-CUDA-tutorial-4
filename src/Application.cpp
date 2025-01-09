@@ -87,14 +87,14 @@ void Application::createBVH(const std::string_view scenefile)
 	// create arrays for the triangles and the vertices
 	// Scene() constructor: Scene(const S32 numTris, const S32 numVerts, const Array<Triangle>& tris, const Array<Vec3f>& verts)
 
-	Array<Scene::Triangle> tris;
+	Array<Mesh::Triangle> tris;
 	Array<Vec3f> verts;
 	tris.clear();
 	verts.clear();
 
 	// convert Triangle to Scene::Triangle
 	for (unsigned int i = 0; i < trianglesNo; i++){
-		Scene::Triangle newtri;
+		Mesh::Triangle newtri;
 		newtri.vertices = Vec3i(triangles[i]._idx1, triangles[i]._idx2, triangles[i]._idx3);
 		tris.add(newtri);
 	}
@@ -105,7 +105,7 @@ void Application::createBVH(const std::string_view scenefile)
 	}
 
 	std::cout << "Building a new scene\n";
-	Scene* scene = new Scene(trianglesNo, verticesNo, tris, verts);
+	Mesh* scene = new Mesh(trianglesNo, verticesNo, tris, verts);
 
 	std::cout << "Building BVH with spatial splits\n";
 	// create a default platform
@@ -137,7 +137,7 @@ void Application::initCUDAscenedata()
 {
 
 	// allocate GPU memory for accumulation buffer
-	cudaCheckError(cudaMalloc(&accumulatebuffer, scrwidth * scrheight * sizeof(Vec3f)));
+	cudaCheckError(cudaMalloc(&accumulatebuffer, bufwidth * bufheight * sizeof(Vec3f)));
 
 	// allocate GPU memory for interactive camera
 	cudaCheckError(cudaMalloc(reinterpret_cast<void **>(&cudaRendercam), sizeof(Camera)));
@@ -195,7 +195,7 @@ Application::Application(const std::string_view sceneFile, const std::string_vie
 	// create a CPU camera
 	hostRendercam = std::make_unique<Camera>();
 	// initialise an interactive camera on the CPU side
-	initCamera(interactiveCamera);
+	initCamera(interactiveCamera, scrwidth, scrheight);
 	interactiveCamera.buildRenderCamera(*hostRendercam);
 
 	// create the BVH structure:
@@ -290,7 +290,7 @@ void Application::initOpenGL(int* argc, char** argv)
 void Application::display()
 {
 	// if camera has moved, reset the accumulation buffer
-	if (buffer_reset){ cudaMemset(accumulatebuffer, 1, scrwidth * scrheight * sizeof(Vec3f)); framenumber = 0; }
+	if (buffer_reset){ cudaCheckError(cudaMemset(accumulatebuffer, 1, bufwidth * bufheight * sizeof(Vec3f))); framenumber = 0; }
 
 	buffer_reset = false;
 	framenumber++;
@@ -305,7 +305,7 @@ void Application::display()
 
 	size_t num_bytes = 0;
 
-	cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&finaloutputbuffer), &num_bytes, cudaResource); // maps a buffer object for access by CUDA
+	cudaCheckError(cudaGraphicsResourceGetMappedPointer(reinterpret_cast<void**>(&finaloutputbuffer), &num_bytes, cudaResource)); // maps a buffer object for access by CUDA
 	[[maybe_unused]] size_t num_elements = num_bytes / sizeof(Vec3f);
 	glClear(GL_COLOR_BUFFER_BIT); //clear all pixels
 
@@ -314,7 +314,7 @@ void Application::display()
 
 	// gateway from host to CUDA, passes all data needed to render frame (triangles, BVH tree, camera) to CUDA for execution
 	cudaRender(cudaNodePtr, cudaTriWoopPtr, cudaTriDebugPtr, cudaTriIndicesPtr, finaloutputbuffer,
-		accumulatebuffer, gpuHDRenv.data().get(), framenumber, hashedframes, nodeSize, leafnode_count, triangle_count, cudaRendercam);
+		accumulatebuffer, gpuHDRenv.data().get(), framenumber, hashedframes, nodeSize, leafnode_count, triangle_count, cudaRendercam, scrwidth, scrheight, bufwidth, bufheight);
 
 	cudaDeviceSynchronize();
 	cudaGraphicsUnmapResources(1,&cudaResource, nullptr);
@@ -327,10 +327,52 @@ void Application::display()
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
-	glDrawArrays(GL_POINTS, 0, scrwidth * scrheight);
+	glDrawArrays(GL_POINTS, 0, bufwidth * bufheight);
 	glDisableClientState(GL_VERTEX_ARRAY);
 
 	glutSwapBuffers();
+}
+
+inline int alignedTo16(int value) {
+	return (value + (16-1)) & ~(16-1);
+}
+
+void Application::resize(const int width, const int height) {
+	scrwidth  = width;
+	scrheight = height;
+	bufwidth  = alignedTo16(width);
+	bufheight = alignedTo16(height);
+	interactiveCamera.setResolution(scrwidth, scrheight);
+	cudaCheckError(cudaDeviceSynchronize());
+
+	// free buffers
+	if (accumulatebuffer) {
+		cudaCheckError(cudaFree(accumulatebuffer));
+		accumulatebuffer = nullptr;
+	}
+	if (finaloutputbuffer) {
+		cudaCheckError(cudaGraphicsUnregisterResource(cudaResource));
+		finaloutputbuffer = nullptr;
+	}
+
+	if (vbo) {
+		glDeleteBuffers(1, &vbo);
+		vbo = 0;
+	}
+
+	// Reallocate buffer
+	const size_t buffer_size = bufwidth * bufheight * sizeof(Vec3f);
+	cudaCheckError(cudaMalloc(&accumulatebuffer, buffer_size));
+	cudaCheckError(cudaMemset(accumulatebuffer, 0, buffer_size));
+
+	// Recreate VBO
+	createVBO(&vbo);
+	buffer_reset = true;
+    glViewport(0, 0, scrwidth, scrheight);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluOrtho2D(0.0, scrwidth, 0.0, scrheight); // For orthographic projection
+	glMatrixMode(GL_MODELVIEW);
 }
 
 void Application::start() const {
@@ -357,10 +399,10 @@ void Application::createVBO(GLuint* vbo)
 	glBindBuffer(GL_ARRAY_BUFFER, *vbo);
 
 	//Initialize VBO
-	unsigned int size = scrwidth * scrheight * sizeof(Vec3f);
+	unsigned int size = bufwidth * bufheight * sizeof(Vec3f);
 	glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	//Register VBO with CUDA
-	cudaGraphicsGLRegisterBuffer(&cudaResource,*vbo,cudaGraphicsRegisterFlagsWriteDiscard);
+	cudaCheckError(cudaGraphicsGLRegisterBuffer(&cudaResource,*vbo,cudaGraphicsRegisterFlagsWriteDiscard));
 }

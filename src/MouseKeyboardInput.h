@@ -11,10 +11,10 @@ inline bool buffer_reset = false;
  * Creats new interactive camera at the interactiveCamera parameter
  * effectively resetting it to the default parameters
  */
-inline void initCamera(InteractiveCamera& interactiveCamera)
+inline void initCamera(InteractiveCamera& interactiveCamera, int scrwidth,int scrheight)
 {
 	//Resets the camera to a new initial state
-	interactiveCamera = InteractiveCamera();
+	interactiveCamera = InteractiveCamera( scrwidth, scrheight);
 
 	interactiveCamera.setResolution(scrwidth, scrheight);
 	interactiveCamera.setFOVX(45);
@@ -26,12 +26,12 @@ inline int theButtonState = 0;
 inline int theModifierState = 0;
 
 // keyboard interaction
-inline void keyboard(InteractiveCamera& interactiveCamera, unsigned char key, int /*x*/, int /*y*/)
+inline void keyboard(InteractiveCamera& interactiveCamera, unsigned char key, int /*x*/, int /*y*/, int scrwidth,int scrheight)
 {
 	switch (key) {
 
 	case(27) : exit(0);
-	case(' ') : initCamera(interactiveCamera); buffer_reset = true; break;
+	case(' ') : initCamera(interactiveCamera, scrwidth, scrheight); buffer_reset = true; break;
 	case('a') : interactiveCamera.strafe(-0.05f); buffer_reset = true; break;
 	case('d') : interactiveCamera.strafe(0.05f); buffer_reset = true; break;
 	case('r') : interactiveCamera.changeAltitude(0.05f); buffer_reset = true; break;

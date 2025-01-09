@@ -37,6 +37,8 @@ public:
 	void createVBO(GLuint *vbo);
 
 	void display();
+
+	void resize(int width, int height);
 private:
 	// DATA
 	Vec4i* cpuNodePtr = nullptr;
@@ -65,6 +67,11 @@ private:
 
 	Clock watch;
 	GLuint vbo;
+
+	int scrwidth = 1280;
+	int scrheight = 720;
+	int bufwidth = 1280;
+	int bufheight = 720;
 
 	int framenumber = 0;
 	int nodeSize = 0;
@@ -99,6 +106,10 @@ public:
 	 * @param renderer_
 	 */
 	static void registerRenderer(Application* renderer_) {
+		if (renderer == nullptr) {
+			std::cerr << "Renderer was not set!\n";
+			std::exit(EXIT_FAILURE);
+		}
 		renderer = renderer_;
 
 		// register callback function to display graphics
@@ -109,32 +120,25 @@ public:
 		glutSpecialFunc(Handler::handleSpecialKeys);
 		glutMouseFunc(Handler::handleMouse);
 		glutMotionFunc(Handler::handleMotion);
+		glutReshapeFunc(Handler::handleReshape);
 	}
 private:
-	static void notNull() {
-		if (renderer == nullptr) {
-			std::cerr << "Renderer was not set!\n";
-			std::exit(EXIT_FAILURE);
-		}
+	static void handleReshape(int w, int h) {
+		renderer->resize(w,h);
 	}
 	static void handleDisplay() {
-		notNull();
 		renderer->display();
 	}
 	static void handleKeyboard(unsigned char key, int x, int y) {
-		notNull();
-		keyboard(renderer->interactiveCamera, key, x, y);
+		keyboard(renderer->interactiveCamera, key, x, y, renderer->scrwidth, renderer->scrheight);
 	}
 	static void handleSpecialKeys(int key, int x, int y) {
-		notNull();
 		specialkeys(renderer->interactiveCamera, key,x,y);
 	}
 	static void handleMouse(int button, int state, int x, int y) {
-		notNull();
 		mouse(renderer->interactiveCamera, button, state, x, y);
 	}
 	static void handleMotion( int x, int y) {
-		notNull();
 		motion(renderer->interactiveCamera, x,y);
 	}
 };

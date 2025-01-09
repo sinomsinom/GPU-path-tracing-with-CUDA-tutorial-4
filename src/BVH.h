@@ -26,7 +26,7 @@
 */
 
 #pragma once
-#include "Scene.h"
+#include "Mesh.h"
 #include "BVHNode.h"
 #include <cstdio>
 #include <string>
@@ -39,7 +39,7 @@ struct RayStats
 	void clear()        { memset(this, 0, sizeof(RayStats)); }																		/// platform.getName().getPtr
 	void print() const  { if (numRays>0) printf("Ray stats: (%s) %d rays, %.1f tris/ray, %.1f nodes/ray (cost=%.2f) %.2f treelets/ray\n", platform.getName().c_str(), numRays, 1.f*numTriangleTests / numRays, 1.f*numNodeTests / numRays, (platform.getSAHTriangleCost()*numTriangleTests / numRays + platform.getSAHNodeCost()*numNodeTests / numRays), 1.f*numTreelets / numRays); }
 
-	S32         numRays;  
+	S32         numRays;
 	S32         numTriangleTests;
 	S32         numNodeTests;
 	S32         numTreelets;
@@ -50,7 +50,7 @@ struct RayStats
 class BVH
 {
 public:
-	struct Stats   
+	struct Stats
 	{
 		Stats()             { clear(); }
 		void clear()        { memset(this, 0, sizeof(Stats)); }
@@ -80,23 +80,23 @@ public:
 	};
 
 public:
-	BVH(Scene* scene, const Platform& platform, const BuildParams& params);
-	~BVH(void)                  { if (m_root) m_root->deleteSubtree(); } 
+	BVH(Mesh* mesh, const Platform& platform, const BuildParams& params);
+	~BVH(void)                  { if (m_root) m_root->deleteSubtree(); }
 
-	Scene*              getScene(void) const           { return m_scene; }
+	Mesh*               getMesh(void) const            { return m_mesh; }
 	const Platform&     getPlatform(void) const        { return m_platform; }
-	BVHNode*            getRoot(void) const            { return m_root; } 
+	BVHNode*            getRoot(void) const            { return m_root; }
 
 	Array<S32>&         getTriIndices(void)                  { return m_triIndices; }
 	const Array<S32>&   getTriIndices(void) const            { return m_triIndices; }
 
 private:
 
-	Scene*              m_scene;
+	Mesh*               m_mesh;
 	Platform            m_platform;
 
 	BVHNode*            m_root;
-	Array<S32>        m_triIndices;
+	Array<S32>          m_triIndices;
 };
 
 

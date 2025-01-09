@@ -265,10 +265,10 @@ void CudaBVH::woopifyTri(const BVH& bvh, int triIdx)
 	woopcount++;
 
 	// fetch the 3 vertex indices of this triangle
-	const Vec3i& vtxInds = bvh.getScene()->getTriangle(bvh.getTriIndices()[triIdx]).vertices; 
-  const Vec3f& v0 = bvh.getScene()->getVertex(vtxInds.x);
-  const Vec3f& v1 = bvh.getScene()->getVertex(vtxInds.y);
-	const Vec3f& v2 = bvh.getScene()->getVertex(vtxInds.z);
+	const Vec3i& vtxInds = bvh.getMesh()->getTriangle(bvh.getTriIndices()[triIdx]).vertices;
+    const Vec3f& v0 = bvh.getMesh()->getVertex(vtxInds.x);
+    const Vec3f& v1 = bvh.getMesh()->getVertex(vtxInds.y);
+	const Vec3f& v2 = bvh.getMesh()->getVertex(vtxInds.z);
 	
 	// regular triangles (for debugging only)
 	m_debugtri[0] = Vec4f(v0.x, v0.y, v0.z, 0.0f);

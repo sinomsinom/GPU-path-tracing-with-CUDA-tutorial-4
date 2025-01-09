@@ -4,7 +4,6 @@
 
 #include "Geometry.h"
 #include "linear_math.h"
-constexpr auto PI_OVER_TWO = 1.5707963267948966192313216916397514420985;
 
 // Camera struct, used to store interactive camera data, copied to the GPU and used by CUDA for each frame
 struct Camera {
@@ -37,7 +36,7 @@ private:
 	void fixFocalDistance();
 
 public:
-	InteractiveCamera();
+	explicit InteractiveCamera( int scrwidth = 1280, int scrheight = 720);
 	virtual ~InteractiveCamera();
 	void changeYaw(float m);
 	void changePitch(float m);

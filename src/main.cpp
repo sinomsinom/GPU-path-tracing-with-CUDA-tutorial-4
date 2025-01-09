@@ -23,16 +23,16 @@
 
 
 int main(int argc, char** argv) {
-	cxxopts::Options options("CudaPT", "Simple CUDA pathtracer");
-	options.add_options()
-		("f,scenefile", "Filename of Scene to load", cxxopts::value<std::string>()->default_value("../data/dragon.obj"))
-		("hdr,hdrfile","Filename of HDR to load", cxxopts::value<std::string>()->default_value("../data/Topanga_Forest_B_3k.hdr"));
-	const auto results = options.parse(argc, argv);
-	const auto sceneFile = results["scenefile"].as<std::string>();
-	const auto hdrFile = results["hdrfile"].as<std::string>();
+    cxxopts::Options options("CudaPT", "Simple CUDA pathtracer");
+    options.add_options()
+        ("f,scenefile", "Filename of Scene to load", cxxopts::value<std::string>()->default_value("../data/dragon.obj"))
+        ("hdr,hdrfile", "Filename of HDR to load", cxxopts::value<std::string>()->default_value("../data/Topanga_Forest_B_3k.hdr"));
+    const auto results = options.parse(argc, argv);
+    const auto sceneFile = results["scenefile"].as<std::string>();
+    const auto hdrFile = results["hdrfile"].as<std::string>();
 
-	Application renderer(sceneFile, hdrFile);
-	renderer.initOpenGL(&argc, argv);
-	renderer.start();
+    Application renderer(sceneFile, hdrFile);
+    renderer.initOpenGL(&argc, argv);
+    renderer.start();
 
 }

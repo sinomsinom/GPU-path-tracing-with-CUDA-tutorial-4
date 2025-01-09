@@ -31,14 +31,14 @@
 #include "SplitBVHBuilder.h"
 
 
-BVH::BVH(Scene* scene, const Platform& platform, const BuildParams& params)
+BVH::BVH(Mesh* mesh, const Platform& platform, const BuildParams& params)
 {
 	FW_ASSERT(scene);
-	m_scene = scene;
+	m_mesh = mesh;
 	m_platform = platform;
 
 	if (params.enablePrints)
-		printf("BVH builder: %d tris, %d vertices\n", scene->getNumTriangles(), scene->getNumVertices());
+		printf("BVH builder: %d tris, %d vertices\n", mesh->getNumTriangles(), mesh->getNumVertices());
 
 	// SplitBVHBuilder() builds the actual BVH
 	m_root = SplitBVHBuilder(*this, params).run();

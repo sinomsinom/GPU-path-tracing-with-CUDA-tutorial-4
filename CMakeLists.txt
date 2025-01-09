@@ -37,7 +37,7 @@ set(HEADERS
     src/Geometry.h
     src/HDRloader.h
     src/MouseKeyboardInput.h
-    src/Scene.h
+    src/Mesh.h
     src/SceneLoader.h
     src/Sort.h
     src/SplitBVHBuilder.h

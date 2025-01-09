@@ -77,7 +77,7 @@ void InteractiveCamera::setResolution(const float x, const float y){
 }
 
 float radiansToDegrees(const float radians) {
-	const auto degrees = static_cast<float>(radians * 180.0 / std::numbers::inv_pi);
+	const auto degrees = static_cast<float>(radians * 180.0 / std::numbers::pi);
 	return degrees;
 }
 

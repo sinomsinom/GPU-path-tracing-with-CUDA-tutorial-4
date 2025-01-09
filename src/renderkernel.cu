@@ -10,6 +10,7 @@
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>
 #include <driver_types.h>
+#include <iostream>
 #include <vector_functions.h>
 #include <vector_types.h>
 #include <texture_indirect_functions.h>
@@ -1035,16 +1036,16 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 
 __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, Vec3f* output, Vec3f* accumbuffer, const float4* HDRmap, const float4* gpuNodes, const float4* gpuTriWoops,
     const float4* gpuDebugTris, const int* gpuTriIndices, unsigned int framenumber, unsigned int hashedframenumber, unsigned int leafcount,
-    unsigned int tricount, const Camera* cudaRendercam)
+    unsigned int tricount, const Camera* cudaRendercam, int scrwidth, int scrheight, int bufwidth, int bufheight)
 {
     // assign a CUDA thread to every pixel by using the threadIndex
-  unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-  unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+    unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+    unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     // global threadId, see richiesams blogspot
     int threadId = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
-  //int pixelx = threadId % scrwidth; // pixel x-coordinate on screen
-  //int pixely = threadId / scrwidth; // pixel y-coordintate on screen
+    //int pixelx = threadId % scrwidth; // pixel x-coordinate on screen
+    //int pixely = threadId / scrwidth; // pixel y-coordintate on screen
 
     // create random number generator and initialise with hashed frame number, see RichieSams blogspot
     curandState randState; // state of the random number generator, to prevent repetition
@@ -1052,15 +1053,15 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
 
     Vec3f finalcol; // final pixel colour
     finalcol = Vec3f(0.0f, 0.0f, 0.0f); // reset colour to zero for every pixel
-  //Vec3f rendercampos = Vec3f(0, 0.2, 4.6f); 
+    //Vec3f rendercampos = Vec3f(0, 0.2, 4.6f);
     Vec3f rendercampos = Vec3f(cudaRendercam->position.x, cudaRendercam->position.y, cudaRendercam->position.z);
 
-    int i = (scrheight - y - 1) * scrwidth + x; // pixel index in buffer
+    int i = (bufheight - y - 1) * bufwidth + x; // pixel index in buffer
     int pixelx = x; // pixel x-coordinate on screen
     int pixely = scrheight - y - 1; // pixel y-coordintate on screen
 
-    Vec3f camdir = Vec3f(0, -0.042612, -1); camdir.normalize();
-    Vec3f cx = Vec3f(scrwidth * .5135f / scrheight, 0.0f, 0.0f);  // ray direction offset along X-axis
+    Vec3f camdir(0, -0.042612, -1); camdir.normalize();
+    Vec3f cx(bufwidth * .5135f / bufheight, 0.0f, 0.0f);  // ray direction offset along X-axis
     Vec3f cy = (cross(cx, camdir)).normalize() * .5135f; // ray dir offset along Y-axis, .5135 is FOV angle
 
 
@@ -1145,6 +1146,27 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
 
     // store pixel coordinates and pixelcolour in OpenGL readable outputbuffer
     output[i] = Vec3f(x, y, fcolour.c);
+    // DEBUG CODE
+    //
+    // float xcol = ((pixelx<16 || pixelx > (scrwidth - 16)) && pixelx % 2) ? 1.f : 0.f;
+    // float ycol = ((pixely<16 || pixely > (scrheight- 16)) && pixely % 2) ? 1.f : 0.f;
+    //
+    // Colour fcolour{};
+    // const Vec3f colour(
+    //     clamp(xcol , 0.0f, 1.0f),
+    //     clamp(ycol, 0.0f, 1.0f),
+    //     clamp(0, 0.0f, 1.0f));
+    // // const Vec3f colour(
+    // //    clamp(static_cast<float>(pixelx) / static_cast<float>(scrwidth) , 0.0f, 1.0f),
+    // //    clamp(static_cast<float>(pixely) / static_cast<float>(scrheight), 0.0f, 1.0f),
+    // //    clamp(0, 0.0f, 1.0f));
+    //
+    // fcolour.components = make_uchar4(
+    //     static_cast<unsigned char>(powf(colour.x, 1 / 2.2f) * 255),
+    //     static_cast<unsigned char>(powf(colour.y, 1 / 2.2f) * 255),
+    //     static_cast<unsigned char>(powf(colour.z, 1 / 2.2f) * 255), 1);
+    //
+    // output[i] = Vec3f(x,y, fcolour.c);
 }
 
 bool firstTime = true;
@@ -1152,8 +1174,9 @@ bool firstTime = true;
 // the gateway to CUDA, called from C++ (in void disp() in main.cpp)
 void cudaRender(const float4* nodes, const float4* triWoops, const float4* debugTris, const int* triInds,
     Vec3f* outputbuf, Vec3f* accumbuf, const float4* HDRmap, const unsigned int framenumber, const unsigned int hashedframenumber,
-	const unsigned int nodeSize, const unsigned int leafnodecnt, const unsigned int tricnt, const Camera* cudaRenderCam){
-
+	const unsigned int nodeSize, const unsigned int leafnodecnt, const unsigned int tricnt, const Camera* cudaRenderCam,
+	int scrwidth, int scrheight, int bufwidth, int bufheight)
+{
     if (firstTime) {
         // if this is the first time cudarender() is called,
         // bind the scene data to CUDA textures!
@@ -1227,7 +1250,7 @@ void cudaRender(const float4* nodes, const float4* triWoops, const float4* debug
     }
 
 	dim3 block(16, 16, 1);   // dim3 CUDA specific syntax, block and grid are required to schedule CUDA threads over streaming multiprocessors
-    dim3 grid(scrwidth / block.x, scrheight / block.y, 1);
+    dim3 grid(bufwidth / block.x, bufheight / block.y, 1);
 
     // Configure grid and block sizes:
     int threadsPerBlock = 256;
@@ -1235,5 +1258,5 @@ void cudaRender(const float4* nodes, const float4* triWoops, const float4* debug
     int fullBlocksPerGrid = ((scrwidth * scrheight) + threadsPerBlock - 1) / threadsPerBlock;
     // <<<fullBlocksPerGrid, threadsPerBlock>>>
     PathTracingKernel<<<grid, block>>>(HDRTextureObj, bvhNodesTextureObj, triWoopTextureObj, triIndicesTextureObj, outputbuf, accumbuf, HDRmap, nodes, triWoops, debugTris,
-        triInds, framenumber, hashedframenumber, leafnodecnt, tricnt, cudaRenderCam); // texdata, texoffsets
+                                       triInds, framenumber, hashedframenumber, leafnodecnt, tricnt, cudaRenderCam, scrwidth, scrheight, bufwidth, bufheight); // texdata, texoffsets
 }

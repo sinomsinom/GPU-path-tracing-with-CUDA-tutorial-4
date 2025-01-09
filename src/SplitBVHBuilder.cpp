@@ -56,11 +56,11 @@ BVHNode* SplitBVHBuilder::run(void)  /// returns the rootnode
 
 	// Initialize reference stack and determine root bounds.
 
-	const Scene::Triangle* tris = m_bvh.getScene()->getTrianglePtr(); // list of all triangles in scene
-	const Vec3f* verts = m_bvh.getScene()->getVertexPtr();  // list of all vertices in scene
+	const Mesh::Triangle* tris = m_bvh.getMesh()->getTriangleData(); // list of all triangles in scene
+	const Vec3f* verts = m_bvh.getMesh()->getVertexData();  // list of all vertices in scene
 
 	NodeSpec rootSpec;
-	rootSpec.numRef = m_bvh.getScene()->getNumTriangles();  // number of triangles/references in entire scene (root)
+	rootSpec.numRef = m_bvh.getMesh()->getNumTriangles();  // number of triangles/references in entire scene (root)
 	m_refStack.resize(rootSpec.numRef);
 	
 	// calculate the bounds of the rootnode by merging the AABBs of all the references
@@ -91,7 +91,7 @@ BVHNode* SplitBVHBuilder::run(void)  /// returns the rootnode
 
 	if (m_params.enablePrints)
 		printf("SplitBVHBuilder: progress %.0f%%, duplicates %.0f%%\n",
-		100.0f, (F32)m_numDuplicates / (F32)m_bvh.getScene()->getNumTriangles() * 100.0f);
+		100.0f, (F32)m_numDuplicates / (F32)m_bvh.getMesh()->getNumTriangles() * 100.0f);
 
 	return root;
 }
@@ -128,7 +128,7 @@ BVHNode* SplitBVHBuilder::buildNode(const NodeSpec& spec, int level, F32 progres
 //	if (m_params.enablePrints && m_progressTimer.getElapsed() >= 1.0f)
 //	{
 //		printf("SplitBVHBuilder: progress %.0f%%, duplicates %.0f%%\r",
-//			progressStart * 100.0f, (F32)m_numDuplicates / (F32)m_bvh.getScene()->getNumTriangles() * 100.0f);
+//			progressStart * 100.0f, (F32)m_numDuplicates / (F32)m_bvh.getMesh()->getNumTriangles() * 100.0f);
 //		m_progressTimer.start();
 //	}
 
@@ -448,8 +448,8 @@ void SplitBVHBuilder::splitReference(Reference& left, Reference& right, const Re
 
 	// Loop over vertices/edges.
 
-	const Vec3i& inds = m_bvh.getScene()->getTriangle(ref.triIdx).vertices;
-	const Vec3f* verts = m_bvh.getScene()->getVertexPtr();
+	const Vec3i& inds = m_bvh.getMesh()->getTriangle(ref.triIdx).vertices;
+	const Vec3f* verts = m_bvh.getMesh()->getVertexData();
 	const Vec3f* v1 = &verts[inds.z];
 
 	for (int i = 0; i < 3; i++)
