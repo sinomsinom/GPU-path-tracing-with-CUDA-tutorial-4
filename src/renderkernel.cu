@@ -31,6 +31,15 @@ constexpr auto HDRheight = 1600;
 
 enum Refl_t { DIFF, METAL, SPEC, REFR, COAT, DIEL };  // material types
 
+struct Material {
+    float diffuse;
+    float specular;
+    float metal;
+    float refract;
+    float coat;
+};
+
+
 // CUDA textures containing scene data
 cudaTextureObject_t bvhNodesTextureObj;
 cudaTextureObject_t triWoopTextureObj;
@@ -52,7 +61,8 @@ struct Sphere {
 
 	float rad;				// radius 
 	float3 pos, emi, col;	// position, emission, color 
-	Refl_t refl;			// reflection type (DIFFuse, SPECular, REFRactive)
+	// Refl_t refl;			// reflection type (DIFFuse, SPECular, REFRactive)
+    Material material;
 
     __device__ float intersect(const Ray &r) const { // returns distance, 0 if nohit
 
@@ -69,20 +79,20 @@ struct Sphere {
 __constant__ Sphere spheres[] = {
     // sun
     //{ 10000, { 50.0f, 40.8f, -1060 }, { 0.3, 0.3, 0.3 }, { 0.175f, 0.175f, 0.25f }, DIFF }, // sky   0.003, 0.003, 0.003
-    { 4.5, { 0.0f, 12.5, 0 }, { 6, 4, 1 }, { .6f, .6f, 0.6f }, DIFF },  /// lightsource
-    { 10000.02, { 50.0f, -10001.35, 0 }, { 0.0, 0.0, 0 }, { 0.3f, 0.3f, 0.3f }, DIFF }, // ground  300/-301.0
+    { 4.5, { 0.0f, 12.5, 0 }, { 12, 8, 2 }, { .6f, .6f, 0.6f }, {1.f,0.f,0.f,0.f,0.f} },  /// lightsource
+    { 10000.02, { 50.0f, -10001.35, 0 }, { 0.0, 0.0, 0 }, { 0.3f, 0.3f, 0.3f }, {1.f,0.f,0.f,0.f,0.f} }, // ground  300/-301.0
     //{ 10000, { 50.0f, -10000.1, 0 }, { 0, 0, 0 }, { 0.3f, 0.3f, 0.3f }, DIFF }, // double shell to prevent light leaking
     //{ 110000, { 50.0f, -110048.5, 0 }, { 3.6, 2.0, 0.2 }, { 0.f, 0.f, 0.f }, DIFF },  // horizon brightener
 
-    { 0.5, { 30.0f, 180.5, 42 }, { 0, 0, 0 }, { .6f, .6f, 0.6f }, DIFF },  // small sphere 1
-    { 0.8, { 2.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, SPEC },  // small sphere 2
-    { 0.8, { -3.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.0f, 0.0f, 0.2f }, COAT },  // small sphere 2
-	{ 2.5, { -6.0f, 0.5f, 0.0f }, { 0.0, 0.0, 0.0 }, { 0.9f, 0.9f, 0.9f }, SPEC },  // small sphere 2
+    { 0.5, { 30.0f, 180.5, 42 }, { 0, 0, 0 }, { .6f, .6f, 0.6f }, {1.f,0.f,0.f,0.f,0.f} },  // small sphere 1
+    { 0.8, { 2.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, {0.f,1.f,0.f,0.f,0.f} },  // small sphere 2
+    { 0.8, { -3.0f, 0.f, 0 }, { 0.0, 0.0, 0.0 }, { 0.0f, 0.0f, 0.2f }, {0.f,0.f,0.f,0.f,1.f} },  // small sphere 2
+	{ 2.5, { -6.0f, 0.5f, 0.0f }, { 0.0, 0.0, 0.0 }, { 0.9f, 0.9f, 0.9f }, {0.f,1.f,0.f,0.f,0.f} },  // small sphere 2
     // { 0.6, { -10.0f, -2.f, 1.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, DIFF },  // small sphere 2
-    { 0.8, { -1.0f, -0.7f, 4.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, REFR },  // small sphere 2
-    { 0.8, { -0.0f, 0.5f, 5.f }, { 0.0, 0.0, 0.0 }, { 1.0f, 0.2f, 0.8f }, DIEL },  // small sphere 2
-    { 9.4, { 9.0f, 0.f, -9.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.f }, DIFF },  // small sphere 2
-    { 22, { 105.0f, 22, 24 }, { 0, 0, 0 }, { 0.9f, 0.9f, 0.9f }, DIFF }, // small sphere 3
+    { 0.8, { -1.0f, -0.7f, 4.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.8f }, {0.f,0.f,0.f,1.f,0.f} },  // small sphere 2 REFR
+    { 0.8, { -0.0f, 0.5f, 5.f }, { 0.0, 0.0, 0.0 }, { 1.0f, 0.2f, 0.8f }, {0.f,0.f,0.f,1.f,0.f} },  // small sphere 2 DIEL
+    { 9.4, { 9.0f, 0.f, -9.0f }, { 0.0, 0.0, 0.0 }, { 0.8f, 0.8f, 0.f }, {1.f,0.f,0.f,0.f,0.f} },  // small sphere 2
+    { 22, { 105.0f, 22, 24 }, { 0, 0, 0 }, { 0.9f, 0.9f, 0.9f }, {1.f,0.f,0.f,0.f,0.f} }, // small sphere 3
 };
 
 
@@ -916,12 +926,12 @@ __inline__ __device__ void handleDielectric(curandState *randstate, Vec3f& nextd
     float cosine;
 
     if (dot(raydir, n) > 0.f) {
-        eta_in = 1.4f;
+        eta_in = 1.458f;
         eta_tr = 1.f;
         cosine = dot(raydir, n) / raydir.length();
     } else {
         eta_in = 1.f;
-        eta_tr = 1.4f;
+        eta_tr = 1.458f;
         cosine = dot(-raydir, n) / raydir.length();
     }
 
@@ -950,6 +960,27 @@ __inline__ __device__ void handleDielectric(curandState *randstate, Vec3f& nextd
     mask *= objcol;
 }
 
+
+__device__ Refl_t getMaterial(curandState *randstate, const Material& material) {
+    // float diffuse;
+    // float specular;
+    // float metal;
+    // float refract;
+    // float coat;
+    const float total = material.diffuse + material.specular + material.metal + material.refract + material.coat;
+    float diffuse   = material.diffuse  / total;
+    float specular  = material.specular / total;
+    float metal     = material.metal    / total;
+    float refract   = material.refract  / total;
+    const float rand = curand_uniform(randstate);
+    if (rand < (diffuse             )) return DIFF;
+    if (rand < (specular += diffuse )) return SPEC;
+    if (rand < (metal    += specular)) return METAL;
+    if (rand < (refract  += metal   )) return DIEL;
+    return COAT;
+
+
+}
 
 __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, curandState* randstate, const float4* HDRmap, const float4* gpuNodes, const float4* gpuTriWoops,
     const float4* gpuDebugTris, const int* gpuTriIndices, Vec3f& rayorig, Vec3f& raydir, unsigned int leafcount, unsigned int tricount)
@@ -987,7 +1018,6 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 
         //DEBUGintersectBVHandTriangles(make_float4(rayorig.x, rayorig.y, rayorig.z, ray_tmin), make_float4(raydir.x, raydir.y, raydir.z, ray_tmax),
         //gpuNodes, gpuTriWoops, gpuDebugTris, gpuTriIndices, bestTriIdx, hitDistance, debugbingo, trinormal, leafcount, tricount, false);
-
 
         // intersect all spheres in the scene
 
@@ -1066,9 +1096,11 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             nl = dot(n, raydir) < 0 ? n : -n; // correctly oriented normal
 			objcol = Vec3f(hitsphere.col.x, hitsphere.col.y, hitsphere.col.z);   // object colour
 			emit = Vec3f(hitsphere.emi.x, hitsphere.emi.y, hitsphere.emi.z);  // object emission
-            refltype = hitsphere.refl;
+            refltype = getMaterial(randstate, hitsphere.material);
             accucolor += (mask * emit);
         }
+
+
 
         // TRIANGLES:
 		if (geomtype == 2){
@@ -1081,9 +1113,10 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             n.normalize();
 			nl = dot(n, raydir) < 0 ? n : -n;  // correctly oriented normal
 			//Vec3f colour = hitTriIdx->_colorf;
-            // Vec3f colour = Vec3f(0.9f, 0.3f, 0.0f); // hardcoded triangle colour  .9f, 0.3f, 0.0f
-		    Vec3f colour = Vec3f( 0.3f, 0.7f, 0.0f ); // refract colour
-            refltype = DIEL; // objectmaterial
+            // Vec3f colour (0.9f, 0.3f, 0.0f); // hardcoded triangle colour  .9f, 0.3f, 0.0f
+		    Vec3f colour ( 0.9f, 0.9f, 0.9f ); // refract colour
+            constexpr Material mat = {0.0,0.0f,0.0f,5.0f,3.0f};
+            refltype = getMaterial(randstate, mat); // objectmaterial
             objcol = colour;
             emit = Vec3f(0.0, 0.0, 0);  // object emission
             accucolor += (mask * emit);
