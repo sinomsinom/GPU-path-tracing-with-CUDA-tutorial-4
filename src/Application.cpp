@@ -299,7 +299,7 @@ void Application::startBenchmark() {
 void Application::stopBenchmark() const {
 	const auto benchEndTime = std::chrono::steady_clock::now();
 	const auto timeDiff = std::chrono::duration_cast<std::chrono::duration<double>>(benchEndTime - benchStartTime);
-	std::cout << std::format("Ending Benchmark...\n - End Time: {}\n - Time: {}\n", std::chrono::system_clock::now(), timeDiff);
+	std::cout << std::format("Ending Benchmark... \n - End Time:   {:%T}\n - Time:       {}\n", std::chrono::system_clock::now(), timeDiff);
 	doExit();
 }
 
