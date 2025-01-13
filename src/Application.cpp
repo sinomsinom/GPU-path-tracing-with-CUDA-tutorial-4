@@ -11,10 +11,11 @@
 
 #include <format>
 
-#include "handlerror.h"
+#include "handle_error.h"
 #include "HDRloader.h"
 #include "linear_math.h"
 #include "Util.h"
+#include "tga_saver.h"
 
 constexpr bool alwaysRebuild = false;
 
@@ -163,7 +164,7 @@ void Application::initHDR(const std::string_view HDRfile){
 	HDRImage HDRresult{};
 
 	if (HDRLoader::load(HDRfile.data(), HDRresult))
-		std::cout << std::format("HDR environment map loaded. Width: %d Height: %d\n", HDRresult.width, HDRresult.height);
+		std::cout << std::format("HDR environment map loaded. Width: {} Height: {}\n", HDRresult.width, HDRresult.height);
 	else{
 		printf("HDR environment map not found\nAn HDR map is required as light source. Exiting now...\n");
 		system("PAUSE");
@@ -190,7 +191,11 @@ void Application::initHDR(const std::string_view HDRfile){
 }
 
 
-Application::Application(const std::string_view sceneFile, const std::string_view hdrFile)
+Application::Application(const std::string_view sceneFile, const std::string_view hdrFile, const bool benchmarkMode, const int benchmarkFrames, const std::string_view outFile):
+	vbo(0),
+	isBenchmark(benchmarkMode),
+	numBenchmarkFrames(benchmarkFrames),
+	outFileName(outFile)
 {
 	// create a CPU camera
 	hostRendercam = std::make_unique<Camera>();
@@ -202,7 +207,7 @@ Application::Application(const std::string_view sceneFile, const std::string_vie
 	std::string BVHcacheFilename(sceneFile);
 	BVHcacheFilename += ".bvh";
 	FILE* BVHcachefile = nullptr;
-	errno_t error = fopen_s(&BVHcachefile, BVHcacheFilename.c_str(), "rb");
+	const errno_t error = fopen_s(&BVHcachefile, BVHcacheFilename.c_str(), "rb");
 	std::cout << "Loading: " << BVHcachefile << ", " << BVHcacheFilename << "\n";
 	if (!BVHcachefile || error){ nocachedBVH = true; }
 
@@ -273,11 +278,10 @@ void Application::initOpenGL(int* argc, char** argv)
 	// initialise GLEW
 	glewInit();
 	if (!glewIsSupported("GL_VERSION_2_0 ")) {
-		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
-		fflush(stderr);
+		std::cerr << "ERROR: Support for necessary OpenGL extensions missing." << std::endl;
 		exit(0);
 	}
-	fprintf(stderr, "glew initialized  \n");
+	std::cerr << "glew initialized  \n";
 
 	// call Timer()
 	Timer(0);
@@ -287,8 +291,24 @@ void Application::initOpenGL(int* argc, char** argv)
 }
 
 
+void Application::startBenchmark() {
+	benchStartTime = std::chrono::steady_clock::now();
+	std::cout << std::format("Starting Benchmark...\n - Framecount: {}\n - Start Time: {:%T}\n", numBenchmarkFrames, std::chrono::system_clock::now());
+}
+
+void Application::stopBenchmark() const {
+	const auto benchEndTime = std::chrono::steady_clock::now();
+	const auto timeDiff = std::chrono::duration_cast<std::chrono::duration<double>>(benchEndTime - benchStartTime);
+	std::cout << std::format("Ending Benchmark...\n - End Time: {}\n - Time: {}\n", std::chrono::system_clock::now(), timeDiff);
+	doExit();
+}
+
+
 void Application::display()
 {
+	if (isBenchmark && framenumber == 0) {
+		startBenchmark();
+	}
 	// if camera has moved, reset the accumulation buffer
 	if (buffer_reset){ cudaCheckError(cudaMemset(accumulatebuffer, 1, bufwidth * bufheight * sizeof(Vec3f))); framenumber = 0; }
 
@@ -312,6 +332,10 @@ void Application::display()
 	// calculate a new seed for the random number generator, based on the framenumber
 	unsigned int hashedframes = WangHash(framenumber);
 
+	if (isBenchmark && (framenumber >= numBenchmarkFrames)) {
+		stopBenchmark();
+	}
+
 	// gateway from host to CUDA, passes all data needed to render frame (triangles, BVH tree, camera) to CUDA for execution
 	cudaRender(cudaNodePtr, cudaTriWoopPtr, cudaTriDebugPtr, cudaTriIndicesPtr, finaloutputbuffer,
 		accumulatebuffer, gpuHDRenv.data().get(), framenumber, hashedframes, nodeSize, leafnode_count, triangle_count, cudaRendercam, scrwidth, scrheight, bufwidth, bufheight);
@@ -333,7 +357,12 @@ void Application::display()
 	glutSwapBuffers();
 }
 
-inline int alignedTo16(int value) {
+[[noreturn]] void Application::doExit() const {
+	saveToTGA(outFileName, bufwidth, bufheight, finaloutputbuffer);
+	std::exit(EXIT_SUCCESS);
+}
+
+inline int alignedTo16(const int value) {
 	return (value + (16-1)) & ~(16-1);
 }
 

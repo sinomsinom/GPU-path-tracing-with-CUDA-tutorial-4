@@ -16,7 +16,7 @@
 #include <texture_indirect_functions.h>
 #include <numbers>
 
-#include "handlerror.h"
+#include "handle_error.h"
 
 constexpr auto STACK_SIZE = 64; // Size of the traversal stack in local memory.
 constexpr auto TWO_PI = 6.2831853071795864769252867665590057683943f;

@@ -2,17 +2,18 @@ cmake_minimum_required(VERSION 3.29)
 
 include(CheckLanguage)
 
+project(CUDA_PATH_TRACER LANGUAGES CUDA CXX)
+
 check_language(CUDA)
 if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
-    add_definitions(-DUSE_CUDA)    
+    add_definitions(-DUSE_CUDA)
 
     include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 else()
     message("Failed to find CUDA Compiler")
 endif()
 
-project(CUDA_PATH_TRACER LANGUAGES CUDA CXX)
 
 # Finds the required Dependencies
 find_package(GLEW REQUIRED)
@@ -45,7 +46,8 @@ set(HEADERS
     src/cutil_math.h
     src/linear_math.h
     src/Application.h
-    src/handlerror.h
+    src/handle_error.h
+    src/tga_saver.h
 )
 
 set(SOURCES

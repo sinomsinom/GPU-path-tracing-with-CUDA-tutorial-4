@@ -23,16 +23,34 @@
 
 
 int main(int argc, char** argv) {
-    cxxopts::Options options("CudaPT", "Simple CUDA pathtracer");
+    cxxopts::Options options("SimpleCuPT", "Simple CUDA pathtracer");
     options.add_options()
-        ("f,scenefile", "Filename of Scene to load", cxxopts::value<std::string>()->default_value("../data/dragon.obj"))
-        ("hdr,hdrfile", "Filename of HDR to load", cxxopts::value<std::string>()->default_value("../data/Topanga_Forest_B_3k.hdr"));
-    const auto results = options.parse(argc, argv);
-    const auto sceneFile = results["scenefile"].as<std::string>();
-    const auto hdrFile = results["hdrfile"].as<std::string>();
+        ("f,scenefile" , "Filename of Scene to load",        cxxopts::value<std::string>()->default_value("../data/dragon.obj"             ))
+        ("hdr,hdrfile" , "Filename of HDR to load",          cxxopts::value<std::string>()->default_value("../data/Topanga_Forest_B_3k.hdr"))
+        ("l,framelimit", "Number of frames to render in benchmark mode",cxxopts::value<int>        ()->default_value("100"                            ))
+        ("b,benchmark" , "Enable Benchmark mode", cxxopts::value<bool>())
+        ("o,out", "Benchmark out file", cxxopts::value<std::string>()->default_value("out.tga") )
+        ("h,help", "Print usage")
+    ;
+    try {
 
-    Application renderer(sceneFile, hdrFile);
-    renderer.initOpenGL(&argc, argv);
-    renderer.start();
+        const auto results = options.parse(argc, argv);
+        const std::string sceneFile  = results["scenefile" ].as<std::string>();
+        const std::string hdrFile    = results["hdrfile"   ].as<std::string>();
+        const bool        bmarkMode  = results["benchmark" ].as<bool>();
+        const int         frameLimit = results["framelimit"].as<int>();
+        const std::string outFile    = results["out"       ].as<std::string>();
+        if (results.count("help")) {
+            std::cout << options.help() << std::endl;
+            return 0;
+        }
 
+        Application renderer(sceneFile, hdrFile, bmarkMode, frameLimit, outFile);
+        renderer.initOpenGL(&argc, argv);
+        renderer.start();
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << "\n";
+        std::cerr << options.help() << std::endl;
+    }
+    return 0;
 }

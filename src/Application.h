@@ -12,6 +12,7 @@
 #endif
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <chrono>
 
 #include "Camera.h"
 #include "CudaBVH.h"
@@ -22,7 +23,7 @@
 class Application {
 	friend class Handler;
 public:
-	explicit Application(std::string_view sceneFile, std::string_view hdrFile);
+	Application(std::string_view sceneFile, std::string_view hdrFile, bool benchmarkMode, int benchmarkFrames, std::string_view outFile);
 	Application(const Application& other) = delete;
 	Application& operator=(const Application& other) = delete;
 	Application(Application&& other) = delete;
@@ -30,19 +31,26 @@ public:
 	~Application();
 
 	void initOpenGL(int* argc, char** argv);
+
+	void startBenchmark();
+
 	void start() const;
 
 	static void Timer(int);
 
 	void createVBO(GLuint *vbo);
 
+	void stopBenchmark() const;
+
 	void display();
+
+	void doExit() const;
 
 	void resize(int width, int height);
 private:
 	// DATA
 	Vec4i* cpuNodePtr = nullptr;
-	Vec4i*cpuTriWoopPtr = nullptr;
+	Vec4i* cpuTriWoopPtr = nullptr;
 	Vec4i* cpuTriDebugPtr = nullptr;
 	Vec4f* cpuTriNormalPtr = nullptr;
 	S32*   cpuTriIndicesPtr = nullptr;
@@ -84,6 +92,10 @@ private:
 	__device__ float timer = 0.0f;
 	bool nocachedBVH = false;
 	bool openGLInitialised = false;
+	bool isBenchmark = false;
+	int  numBenchmarkFrames = 100;
+	std::chrono::time_point<std::chrono::steady_clock> benchStartTime;
+	std::string_view outFileName;
 
 	//FUNCTIONS
 	void createBVH(std::string_view scenefile);
@@ -103,7 +115,7 @@ public:
 
 	/**
 	 * Registers all the glut handlers to the provided renderer
-	 * @param renderer_
+	 * @param renderer_ Pointer to the Application instance
 	 */
 	static void registerRenderer(Application* renderer_) {
 		if (renderer_ == nullptr) {
@@ -115,12 +127,14 @@ public:
 		// register callback function to display graphics
 		glutDisplayFunc(Handler::handleDisplay);
 
-		// functions for user interaction
-		glutKeyboardFunc(Handler::handleKeyboard);
-		glutSpecialFunc(Handler::handleSpecialKeys);
-		glutMouseFunc(Handler::handleMouse);
-		glutMotionFunc(Handler::handleMotion);
-		glutReshapeFunc(Handler::handleReshape);
+		if (!renderer_->isBenchmark) {
+			// functions for user interaction
+			glutKeyboardFunc(Handler::handleKeyboard);
+			glutSpecialFunc(Handler::handleSpecialKeys);
+			glutMouseFunc(Handler::handleMouse);
+			glutMotionFunc(Handler::handleMotion);
+			glutReshapeFunc(Handler::handleReshape);
+		}
 	}
 private:
 	static void handleReshape(int w, int h) {
