@@ -20,9 +20,9 @@
 
 constexpr auto STACK_SIZE = 64; // Size of the traversal stack in local memory.
 constexpr auto TWO_PI = 6.2831853071795864769252867665590057683943f;
-constexpr auto DYNAMIC_FETCH_THRESHOLD = 20; // If fewer than this active, fetch new rays
+[[maybe_unused]]  constexpr auto DYNAMIC_FETCH_THRESHOLD = 20; // If fewer than this active, fetch new rays
 constexpr auto samps = 1;
-constexpr auto F32_MIN = (1.175494351e-38f);
+[[maybe_unused]]  constexpr auto F32_MIN = (1.175494351e-38f);
 constexpr auto F32_MAX = (3.402823466e+38f);
 
 constexpr auto HDRwidth = 3200;
@@ -37,6 +37,12 @@ struct Material {
     float metal;
     float refract;
     float coat;
+};
+
+struct Hit {
+    float3 nextdir;
+    float3 hitpoint;
+    float3 mask;
 };
 
 
@@ -210,7 +216,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
     int traversalStack[STACK_SIZE];
 
 	float   origx, origy, origz;    // Ray origin.
-	float   dirx, diry, dirz;       // Ray direction.
+	[[maybe_unused]] float   dirx, diry, dirz;       // Ray direction.
 	float   tmin;                   // t-value from which the ray starts. Usually 0.
 	float   idirx, idiry, idirz;    // 1 / dir
 	float   oodx, oody, oodz;       // orig / dir
@@ -220,7 +226,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 	int		nodeAddr;
 	int     hitIndex;
 	float	hitT;
-    int threadId1;
+    [[maybe_unused]] int threadId1;
 
     threadId1 = threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * (blockIdx.x + gridDim.x * blockIdx.y));
 
@@ -252,7 +258,7 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
     {
         // Traverse internal nodes until all SIMD lanes have found a leaf.
 
-        bool searchingLeaf = true; // flag required to increase efficiency of threads in warp
+        [[maybe_unused]] bool searchingLeaf = true; // flag required to increase efficiency of threads in warp
         while (nodeAddr >= 0 && nodeAddr != EntrypointSentinel)
         {
             float4* ptr = reinterpret_cast<float4 *>((char *) gpuNodes + nodeAddr);
@@ -424,11 +430,11 @@ __device__ void DEBUGintersectBVHandTriangles(const float4 rayorig, const float4
 }
 
 __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, const float4 rayorig, const float4 raydir,
-    int& hitTriIdx, float& hitdistance, int& debugbingo, Vec3f& trinormal, unsigned int leafcount, unsigned int  tricount, bool anyHit)
+    int& hitTriIdx, float& hitdistance, int& debugbingo, float3& trinormal, unsigned int leafcount, unsigned int  tricount, bool anyHit)
 {
     // assign a CUDA thread to every pixel by using the threadIndex
     // global threadId, see richiesams blogspot
-    int thread_index = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
+    [[maybe_unused]] int thread_index = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
 
     ///////////////////////////////////////////
     //// KEPLER KERNEL
@@ -439,7 +445,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
 
     // Live state during traversal, stored in registers.
 
-	int		rayidx;		// not used, can be removed
+	[[maybe_unused]] int		rayidx;		// not used, can be removed
 	float   origx, origy, origz;    // Ray origin.
 	float   dirx, diry, dirz;       // Ray direction.
 	float   tmin;                   // t-value from which the ray starts. Usually 0.
@@ -452,7 +458,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
 	int     hitIndex;               // Triangle index of the closest intersection, -1 if none.
 	float   hitT;                   // t-value of the closest intersection.
 
-    int threadId1; // ipv rayidx
+    [[maybe_unused]] int threadId1; // ipv rayidx
 
     // Initialize (stores local variables in registers)
     {
@@ -501,7 +507,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
     {
         // Traverse internal nodes until all SIMD lanes have found a leaf.
 
-        bool searchingLeaf = true; // required for warp efficiency
+        [[maybe_unused]] bool searchingLeaf = true; // required for warp efficiency
         while (nodeAddr >= 0 && nodeAddr != EntrypointSentinel)
         {
             // Fetch AABBs of the two child nodes.
@@ -539,7 +545,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
 
             // ray box intersection boundary tests:
 
-            float ray_tmax = 1e20;
+            [[maybe_unused]] float ray_tmax = 1e20;
             bool traverseChild0 = (c0min <= c0max); // && (c0min >= tmin) && (c0min <= ray_tmax);
             bool traverseChild1 = (c1min <= c1max); // && (c1min >= tmin) && (c1min <= ray_tmax);
 
@@ -680,7 +686,7 @@ __device__ void intersectBVHandTriangles(cudaTextureObject_t bvhNodesTextureObj,
                             // because of Woop transformation, only one set of vectors works
 
                             //trinormal = cross(Vec3f(v22.x, v22.y, v22.z), Vec3f(v11.x, v11.y, v11.z));  // works
-                            trinormal = cross(Vec3f(v11.x, v11.y, v11.z), Vec3f(v22.x, v22.y, v22.z));
+                            trinormal = cross(make_float3(v11.x, v11.y, v11.z), make_float3(v22.x, v22.y, v22.z));
                         }
                     }
                 }
@@ -718,35 +724,34 @@ union Colour  // 4 bytes = 4 chars = 1 float
 
 
 // diffuse material, based on smallpt by Kevin Beason
-__inline__ __device__ void handleDiffuse(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
-    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+__inline__ __device__ void handleDiffuse(curandState *randstate, Hit& hit,
+    const float3& n, const float3& nl, const float3& raydir, const float3& objcol )
 {
 
     // pick two random numbers
-    const float phi = 2 * std::numbers::pi * curand_uniform(randstate);
+    const float phi = 2.f * std::numbers::pi * curand_uniform(randstate);
     const float r2 = curand_uniform(randstate);
     const float r2s = sqrtf(r2);
 
     // compute orthonormal coordinate frame uvw with hitpoint as origin
-    Vec3f w = nl; w.normalize();
-    Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
-    Vec3f v = cross(w, u);
+    const float3 w = normalize(nl);
+    const float3 u = normalize(cross((fabs(w.x) > .1 ? make_float3(0, 1, 0) : make_float3(1, 0, 0)), w));
+    const float3 v = cross(w, u);
 
     // compute cosine weighted random ray direction on hemisphere
-    nextdir = u*cosf(phi)*r2s + v*sinf(phi)*r2s + w*sqrtf(1 - r2);
-    nextdir.normalize();
+    hit.nextdir = normalize(u*cosf(phi)*r2s + v*sinf(phi)*r2s + w*sqrtf(1 - r2));
 
     // offset origin next path segment to prevent self intersection
-    hitpoint += nl * 0.001f; // scene size dependent
+    hit.hitpoint += nl * 0.001f; // scene size dependent
 
     // multiply mask with colour of object
-    mask *= objcol;
+    hit.mask *= objcol;
 
 }
 
 // Phong metal material from "Realistic Ray Tracing", P. Shirley
-__inline__ __device__ void handleMetal(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
-    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+__inline__ __device__ void handleMetal(curandState *randstate, Hit& hit,
+    const float3& n, const float3& nl, const float3& raydir, const float3& objcol )
 {
 
     // compute random perturbation of ideal reflection vector
@@ -759,45 +764,43 @@ __inline__ __device__ void handleMetal(curandState *randstate, Vec3f& nextdir, V
 
     // create orthonormal basis uvw around reflection vector with hitpoint as origin
     // w is ray direction for ideal reflection
-    Vec3f w = raydir - n * 2.0f * dot(n, raydir); w.normalize();
-    Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
-    Vec3f v = cross(w, u); // v is already normalised because w and u are normalised
+    const float3 w = normalize(raydir - n * 2.0f * dot(n, raydir));
+    const float3 u = normalize(cross((fabs(w.x) > .1 ? make_float3(0, 1, 0) : make_float3(1, 0, 0)), w));
+    const float3 v = cross(w, u); // v is already normalised because w and u are normalised
 
     // compute cosine weighted random ray direction on hemisphere
-    nextdir = u * cosf(phi) * sinTheta + v * sinf(phi) * sinTheta + w * cosTheta;
-    nextdir.normalize();
+    hit.nextdir = normalize(u * cosf(phi) * sinTheta + v * sinf(phi) * sinTheta + w * cosTheta);
 
     // offset origin next path segment to prevent self intersection
-    hitpoint += nl * 0.0001f;  // scene size dependent
+    hit.hitpoint += nl * 0.0001f;  // scene size dependent
 
     // multiply mask with colour of object
-    mask *= objcol;
+    hit.mask *= objcol;
 }
 
 // ideal specular reflection (mirror)
-__inline__ __device__ void handleSpecular(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
-    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+__inline__ __device__ void handleSpecular(curandState *randstate,  Hit& hit,
+    const float3& n, const float3& nl, const float3& raydir, const float3& objcol )
 {
     // compute relfected ray direction according to Snell's law
-    nextdir = raydir - n * dot(n, raydir) * 2.0f;
-    nextdir.normalize();
+    hit.nextdir = normalize(raydir - n * dot(n, raydir) * 2.f);
 
     // offset origin next path segment to prevent self intersection
-    hitpoint += nl * 0.001f;
+    hit.hitpoint += nl * 0.001f;
 
     // multiply mask with colour of object
-    mask *= objcol;
+    hit.mask *= objcol;
 }
 
 // COAT material based on https://github.com/peterkutz/GPUPathTracer
 // randomly select diffuse or specular reflection
 // looks okay-ish but inaccurate (no Fresnel calculation yet)
-__inline__ __device__ void handleCoat(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
-    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+__inline__ __device__ void handleCoat(curandState *randstate, Hit& hit,
+    const float3& n, const float3& nl, const float3& raydir, const float3& objcol )
 {
     const float rouletteRandomFloat = curand_uniform(randstate);
     constexpr float threshold = 0.05f;
-    const Vec3f specularColor(1, 1, 1);  // hard-coded
+    const float3 specularColor(1, 1, 1);  // hard-coded
     const bool reflectFromSurface = (rouletteRandomFloat < threshold); //computeFresnel(make_Vec3f(n.x, n.y, n.z), incident, incidentIOR, transmittedIOR, reflectionDirection, transmissionDirection).reflectionCoefficient);
 
     if (reflectFromSurface) { // calculate perfectly specular reflection
@@ -806,12 +809,11 @@ __inline__ __device__ void handleCoat(curandState *randstate, Vec3f& nextdir, Ve
         // TODO: Use Russian roulette instead of simple multipliers!
         // (Selecting between diffuse sample and no sample (absorption) in this case.)
 
-        mask *= specularColor;
-        nextdir = raydir - n * 2.0f * dot(n, raydir);
-        nextdir.normalize();
+        hit.mask *= specularColor;
+        hit.nextdir = normalize(raydir - n * 2.0f * dot(n, raydir));
 
         // offset origin next path segment to prevent self intersection
-        hitpoint += nl * 0.001f; // scene size dependent
+        hit.hitpoint += nl * 0.001f; // scene size dependent
     }
 
     else {  // calculate perfectly diffuse reflection
@@ -821,26 +823,25 @@ __inline__ __device__ void handleCoat(curandState *randstate, Vec3f& nextdir, Ve
         const float r2s = sqrtf(r2);
 
         // compute orthonormal coordinate frame uvw with hitpoint as origin
-        Vec3f w = nl; w.normalize();
-        Vec3f u = cross((fabs(w.x) > .1 ? Vec3f(0, 1, 0) : Vec3f(1, 0, 0)), w); u.normalize();
-        const Vec3f v = cross(w, u);
+        float3 w = normalize(nl);
+        float3 u = normalize(cross((fabs(w.x) > .1 ? make_float3(0, 1, 0) : make_float3(1, 0, 0)), w));
+        const float3 v = cross(w, u);
 
         // compute cosine weighted random ray direction on hemisphere
-        nextdir = u*cosf(r1)*r2s + v*sinf(r1)*r2s + w*sqrtf(1 - r2);
-        nextdir.normalize();
+        hit.nextdir = normalize(u*cosf(r1)*r2s + v*sinf(r1)*r2s + w*sqrtf(1 - r2));
 
         // offset origin next path segment to prevent self intersection
-        hitpoint += nl * 0.001f;  // // scene size dependent
+        hit.hitpoint += nl * 0.001f;  // // scene size dependent
 
         // multiply mask with colour of object
-        mask *= objcol;
+        hit.mask *= objcol;
     }
 }
 
 // perfectly refractive material (glass, water)
 // set ray_tmin to 0.01 when using refractive material
-__inline__ __device__ void handleRefractive(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
-    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol )
+__inline__ __device__ void handleRefractive(curandState *randstate,  Hit& hit,
+    const float3& n, const float3& nl, const float3& raydir, const float3& objcol )
 {
     const bool into = dot(n, nl) > 0; // is ray entering or leaving refractive material?
     constexpr float nc = 1.0f;  // Index of Refraction air
@@ -851,18 +852,17 @@ __inline__ __device__ void handleRefractive(curandState *randstate, Vec3f& nextd
 
     if (cos2t < 0.0f) // total internal reflection
     {
-        nextdir = raydir - n * 2.0f * dot(n, raydir);
-        nextdir.normalize();
+        hit.nextdir = normalize(raydir - n * 2.0f * dot(n, raydir));
 
         // offset origin next path segment to prevent self intersection
-        hitpoint += nl * 0.001f; // scene size dependent
+        hit.hitpoint += nl * 0.001f; // scene size dependent
     }
     else // cos2t > 0
     {
         // compute direction of transmission ray
-        Vec3f tdir = raydir * nnt;
+        float3 tdir = raydir * nnt;
         tdir -= n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t)));
-        tdir.normalize();
+        tdir = normalize(tdir);
 
         float R0 = (nt - nc)*(nt - nc) / (nt + nc)*(nt + nc);
         float c = 1.f - (into ? -ddn : dot(tdir, n));
@@ -875,25 +875,23 @@ __inline__ __device__ void handleRefractive(curandState *randstate, Vec3f& nextd
         // randomly choose reflection or transmission ray
         if (curand_uniform(randstate) < 0.2) // reflection ray
         {
-            mask *= RP;
-            nextdir = raydir - n * 2.0f * dot(n, raydir);
-            nextdir.normalize();
+            hit.mask *= RP;
+            hit.nextdir = normalize(raydir - n * 2.0f * dot(n, raydir));
 
-            hitpoint += nl * 0.001f; // scene size dependent
+            hit.hitpoint += nl * 0.001f; // scene size dependent
         }
         else // transmission ray
         {
-            mask *= TP;
-            nextdir = tdir;
-            nextdir.normalize();
-            hitpoint += nl * 0.0000001f; // epsilon must be VERY small to avoid artefacts
+            hit.mask *= TP;
+            hit.nextdir = normalize(tdir);
+            hit.hitpoint += nl * 0.0000001f; // epsilon must be VERY small to avoid artefacts
         }
     }
 }
 
 
-__inline__ __device__ bool refract(const Vec3f& v_in, const Vec3f& n, const float ni_over_nt, Vec3f& refracted) {
-    Vec3f uv = v_in; uv.normalize();
+__inline__ __device__ bool refract(const float3& v_in, const float3& n, const float ni_over_nt, float3& refracted) {
+    float3 uv = normalize(v_in);
     const float dt = dot(uv, n);
     const float discriminant = 1.f - ni_over_nt * ni_over_nt*(1-dt*dt);
     if (discriminant < 0.f) {
@@ -907,9 +905,9 @@ __inline__ __device__ bool refract(const Vec3f& v_in, const Vec3f& n, const floa
 __inline__ __device__ float schlick( const float cosine, const float eta1, const float eta2) {
     float r0 = (eta1 - eta2) / (eta1 + eta2);
     r0 = r0 * r0;
-     const float r1 =  (1.f - cosine);
+    const float r1 =  (1.f - cosine);
     const float r2 = r1 * r1;
-    return r0 + (1.f - r0) * r1 * r2 * r2;
+    return r0 + (1.f - r0) * r1 * r2 * r2; // r0 + (1-r0) * (1-cosine)^5
     // return r0 + (1.f - r0)*pow(1.f - cosine, 5.f);
 }
 
@@ -919,8 +917,8 @@ inline __host__ __device__ Vec3f reflect(const Vec3f& in, const Vec3f& normal)
 }
 
 
-__inline__ __device__ void handleDielectric(curandState *randstate, Vec3f& nextdir, Vec3f& hitpoint, Vec3f& mask,
-    const Vec3f& n, const Vec3f& nl, const Vec3f& raydir, const Vec3f& objcol ) {
+__inline__ __device__ void handleDielectric(curandState *randstate,  Hit& hit,
+    const float3& n, const float3& nl, const float3& raydir, const float3& objcol ) {
     float eta_in;           // eta incident
     float eta_tr;           // eta transmitted
     float cosine;
@@ -928,14 +926,14 @@ __inline__ __device__ void handleDielectric(curandState *randstate, Vec3f& nextd
     if (dot(raydir, n) > 0.f) {
         eta_in = 1.458f;
         eta_tr = 1.f;
-        cosine = dot(raydir, n) / raydir.length();
+        cosine = dot(raydir, n) / length(raydir);
     } else {
         eta_in = 1.f;
         eta_tr = 1.458f;
-        cosine = dot(-raydir, n) / raydir.length();
+        cosine = dot(-raydir, n) / length(raydir);
     }
 
-    Vec3f refracted;
+    float3 refracted;
     float reflect_prob;
     const float eta = eta_in/eta_tr;
     if (refract(raydir, nl, eta, refracted)) {
@@ -949,15 +947,14 @@ __inline__ __device__ void handleDielectric(curandState *randstate, Vec3f& nextd
     }
 
     if (curand_uniform(randstate) < reflect_prob) {
-        const Vec3f reflected = reflect(raydir, n);
-        nextdir = reflected;
-        nextdir.normalize();
-        hitpoint += nl * 0.001f;
+        const float3 reflected = reflect(raydir, n);
+        hit.nextdir = normalize(reflected);
+        hit.hitpoint += nl * 0.001f;
     } else {
-        nextdir = refracted;
-        hitpoint += nl * 0.00000001f;
+        hit.nextdir = refracted;
+        hit.hitpoint += nl * 0.00000001f;
     }
-    mask *= objcol;
+    hit.mask *= objcol;
 }
 
 
@@ -982,29 +979,30 @@ __device__ Refl_t getMaterial(curandState *randstate, const Material& material) 
 
 }
 
-__device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, curandState* randstate, const float4* HDRmap, const float4* gpuNodes, const float4* gpuTriWoops,
-    const float4* gpuDebugTris, const int* gpuTriIndices, Vec3f& rayorig, Vec3f& raydir, unsigned int leafcount, unsigned int tricount)
+__device__ float3 renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObject_t bvhNodesTextureObj, cudaTextureObject_t triWoopTextureObj, cudaTextureObject_t triIndicesTextureObj, curandState* randstate, const float4* HDRmap, const float4* gpuNodes, const float4* gpuTriWoops,
+    const float4* gpuDebugTris, const int* gpuTriIndices, float3& rayorig, float3& raydir, unsigned int leafcount, unsigned int tricount)
 {
-    Vec3f mask = Vec3f(1.0f, 1.0f, 1.0f); // colour mask
-    Vec3f accucolor = Vec3f(0.0f, 0.0f, 0.0f); // accumulated colour
-    Vec3f direct = Vec3f(0, 0, 0);
+    // Vec3f mask = Vec3f(1.0f, 1.0f, 1.0f); // colour mask
+    float3 accucolor(0.0f, 0.0f, 0.0f); // accumulated colour
+    [[maybe_unused]] float3 direct(0, 0, 0);
+    Hit hit{.mask=float3(1.0f, 1.0f, 1.0f)};
 
     for (int bounces = 0; bounces < 16; bounces++){  // iteration up to 4 bounces (instead of recursion in CPU code)
 
         int hitSphereIdx = -1;
-        int hitTriIdx = -1;
+        [[maybe_unused]] int hitTriIdx = -1;
         int bestTriIdx = -1;
         int geomtype = -1;
         float hitSphereDist = 1e20;
         float hitDistance = 1e20;
         float scene_t = 1e20;
-        Vec3f objcol(0, 0, 0);
-        Vec3f emit(0, 0, 0);
-        Vec3f hitpoint; // intersection point
-        Vec3f n; // normal
-        Vec3f nl; // oriented normal
-        Vec3f nextdir; // ray direction of next path segment
-        Vec3f trinormal(0, 0, 0);
+        float3 objcol(0, 0, 0);
+        float3 emit(0, 0, 0);
+        // Vec3f hitpoint; // intersection point
+        float3 n; // normal
+        float3 nl; // oriented normal
+        // Vec3f nextdir; // ray direction of next path segment
+        float3 trinormal(0, 0, 0);
         Refl_t refltype;
         float ray_tmin = 0.00001f; // set to 0.01f when using refractive material
         float ray_tmax = 1e20;
@@ -1065,7 +1063,7 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
             float longlatY = acosf(raydir.y); // add RotateMap at some point, see Fragmentarium
 
             // map theta and phi to u and v texturecoordinates in [0,1] x [0,1] range
-            float offsetY = 0.5f;
+            [[maybe_unused]] float offsetY = 0.5f;
             float u = longlatX / TWO_PI; // +offsetY;
             float v = longlatY / std::numbers::pi;
 
@@ -1078,10 +1076,10 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 
             //float4 HDRcol = HDRmap[HDRtexelidx];
             auto [x, y, z, w] = tex1Dfetch<float4>(HDRTextureObj, HDRtexelidx);  // fetch from texture
-            Vec3f HDRcol2(x, y, z);
+            float3 HDRcol2(x, y, z);
 
             emit = HDRcol2 * 2.0f;
-            accucolor += (mask * emit);
+            accucolor += (hit.mask * emit);
             return accucolor;
         }
 
@@ -1090,14 +1088,13 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
         // SPHERES:
         if (geomtype == 1){
             Sphere &hitsphere = spheres[hitSphereIdx]; // hit object with closest intersection
-            hitpoint = rayorig + raydir * scene_t;  // intersection point on object
-			n = Vec3f(hitpoint.x - hitsphere.pos.x, hitpoint.y - hitsphere.pos.y, hitpoint.z - hitsphere.pos.z);	// normal
-            n.normalize();
+            hit.hitpoint = rayorig + raydir * scene_t;  // intersection point on object
+			n = normalize(make_float3(hit.hitpoint.x - hitsphere.pos.x, hit.hitpoint.y - hitsphere.pos.y, hit.hitpoint.z - hitsphere.pos.z));	// normal
             nl = dot(n, raydir) < 0 ? n : -n; // correctly oriented normal
-			objcol = Vec3f(hitsphere.col.x, hitsphere.col.y, hitsphere.col.z);   // object colour
-			emit = Vec3f(hitsphere.emi.x, hitsphere.emi.y, hitsphere.emi.z);  // object emission
+			objcol = make_float3(hitsphere.col.x, hitsphere.col.y, hitsphere.col.z);   // object colour
+			emit = make_float3(hitsphere.emi.x, hitsphere.emi.y, hitsphere.emi.z);  // object emission
             refltype = getMaterial(randstate, hitsphere.material);
-            accucolor += (mask * emit);
+            accucolor += (hit.mask * emit);
         }
 
 
@@ -1106,36 +1103,35 @@ __device__ Vec3f renderKernel(cudaTextureObject_t HDRTextureObj, cudaTextureObje
 		if (geomtype == 2){
 
             //pBestTri = &pTriangles[triangle_id];
-            hitpoint = rayorig + raydir * scene_t; // intersection point
+            hit.hitpoint = rayorig + raydir * scene_t; // intersection point
 
             // float4 normal = tex1Dfetch(triNormalsTexture, pBestTriIdx);
-            n = trinormal;
-            n.normalize();
+            n = normalize(trinormal);
 			nl = dot(n, raydir) < 0 ? n : -n;  // correctly oriented normal
-			//Vec3f colour = hitTriIdx->_colorf;
-            // Vec3f colour (0.9f, 0.3f, 0.0f); // hardcoded triangle colour  .9f, 0.3f, 0.0f
-		    Vec3f colour ( 0.9f, 0.9f, 0.9f ); // refract colour
+			//float3 colour = hitTriIdx->_colorf;
+            //float3 colour (0.9f, 0.3f, 0.0f); // hardcoded triangle colour  .9f, 0.3f, 0.0f
+		    float3 colour ( 0.9f, 0.9f, 0.9f ); // refract colour
             constexpr Material mat = {0.0,0.0f,0.0f,5.0f,3.0f};
             refltype = getMaterial(randstate, mat); // objectmaterial
             objcol = colour;
-            emit = Vec3f(0.0, 0.0, 0);  // object emission
-            accucolor += (mask * emit);
+            emit = make_float3(0.0, 0.0, 0);  // object emission
+            accucolor += (hit.mask * emit);
         }
 
         // basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
 
         switch(refltype) {
-            case DIFF:  handleDiffuse   (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
-            case METAL: handleMetal     (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
-            case SPEC:  handleSpecular  (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
-            case COAT:  handleCoat      (randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
-            case REFR:  handleRefractive(randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
-            case DIEL:  handleDielectric(randstate,nextdir,hitpoint,mask,n,nl,raydir,objcol); break;
+            case DIFF:  handleDiffuse   (randstate,hit,n,nl,raydir,objcol); break;
+            case METAL: handleMetal     (randstate,hit,n,nl,raydir,objcol); break;
+            case SPEC:  handleSpecular  (randstate,hit,n,nl,raydir,objcol); break;
+            case COAT:  handleCoat      (randstate,hit,n,nl,raydir,objcol); break;
+            case REFR:  handleRefractive(randstate,hit,n,nl,raydir,objcol); break;
+            case DIEL:  handleDielectric(randstate,hit,n,nl,raydir,objcol); break;
         }
 
         // set up origin and direction of next path segment
-        rayorig = hitpoint;
-        raydir = nextdir;
+        rayorig = hit.hitpoint;
+        raydir = hit.nextdir;
     } // end bounces for loop
 
     return accucolor;
@@ -1158,32 +1154,32 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
     curandState randState; // state of the random number generator, to prevent repetition
     curand_init(hashedframenumber + threadId, 0, 0, &randState);
 
-    Vec3f finalcol; // final pixel colour
-    finalcol = Vec3f(0.0f, 0.0f, 0.0f); // reset colour to zero for every pixel
-    //Vec3f rendercampos = Vec3f(0, 0.2, 4.6f);
-    Vec3f rendercampos = Vec3f(cudaRendercam->position.x, cudaRendercam->position.y, cudaRendercam->position.z);
+    float3 finalcol; // final pixel colour
+    finalcol = make_float3(0.0f, 0.0f, 0.0f); // reset colour to zero for every pixel
+    //float3 rendercampos = Vec3f(0, 0.2, 4.6f);
+    float3 rendercampos(cudaRendercam->position.x, cudaRendercam->position.y, cudaRendercam->position.z);
 
     int i = (bufheight - y - 1) * bufwidth + x; // pixel index in buffer
     int pixelx = x; // pixel x-coordinate on screen
     int pixely = scrheight - y - 1; // pixel y-coordintate on screen
 
-    Vec3f camdir(0, -0.042612, -1); camdir.normalize();
-    Vec3f cx(bufwidth * .5135f / bufheight, 0.0f, 0.0f);  // ray direction offset along X-axis
-    Vec3f cy = (cross(cx, camdir)).normalize() * .5135f; // ray dir offset along Y-axis, .5135 is FOV angle
+    float3 camdir = normalize(make_float3(0, -0.042612, -1));
+    float3 cx(bufwidth * .5135f / bufheight, 0.0f, 0.0f);  // ray direction offset along X-axis
+    float3 cy = normalize(cross(cx, camdir)) * .5135f; // ray dir offset along Y-axis, .5135 is FOV angle
 
 
     for (int s = 0; s < samps; s++) {
 
         // compute primary ray direction
         // use camera view of current frame (transformed on CPU side) to create local orthonormal basis
-        Vec3f rendercamview = Vec3f(cudaRendercam->view.x, cudaRendercam->view.y, cudaRendercam->view.z); rendercamview.normalize(); // view is already supposed to be normalized, but normalize it explicitly just in case.
-        Vec3f rendercamup = Vec3f(cudaRendercam->up.x, cudaRendercam->up.y, cudaRendercam->up.z); rendercamup.normalize();
-        Vec3f horizontalAxis = cross(rendercamview, rendercamup); horizontalAxis.normalize(); // Important to normalize!
-        Vec3f verticalAxis = cross(horizontalAxis, rendercamview); verticalAxis.normalize(); // verticalAxis is normalized by default, but normalize it explicitly just for good measure.
+        float3 rendercamview = normalize(make_float3(cudaRendercam->view.x, cudaRendercam->view.y, cudaRendercam->view.z)); // view is already supposed to be normalized, but normalize it explicitly just in case.
+        float3 rendercamup = normalize(make_float3(cudaRendercam->up.x, cudaRendercam->up.y, cudaRendercam->up.z));
+        float3 horizontalAxis = normalize(cross(rendercamview, rendercamup)); // Important to normalize!
+        float3 verticalAxis = normalize(cross(horizontalAxis, rendercamview)); // verticalAxis is normalized by default, but normalize it explicitly just for good measure.
 
-        Vec3f middle = rendercampos + rendercamview;
-        Vec3f horizontal = horizontalAxis * tanf(cudaRendercam->fov.x * 0.5 * (std::numbers::pi / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
-        Vec3f vertical = verticalAxis * tanf(-cudaRendercam->fov.y * 0.5 * (std::numbers::pi / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
+        float3 middle = rendercampos + rendercamview;
+        float3 horizontal = horizontalAxis * tanf(cudaRendercam->fov.x * 0.5 * (std::numbers::pi / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
+        float3 vertical = verticalAxis * tanf(-cudaRendercam->fov.y * 0.5 * (std::numbers::pi / 180)); // Treating FOV as the full FOV, not half, so multiplied by 0.5
 
         // anti-aliasing
         // calculate center of current pixel and add random number in X and Y dimension
@@ -1195,13 +1191,13 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
         float sy = (jitterValueY + pixely) / (cudaRendercam->resolution.y - 1);
 
         // compute pixel on screen
-        Vec3f pointOnPlaneOneUnitAwayFromEye = middle + (horizontal * ((2 * sx) - 1)) + (vertical * ((2 * sy) - 1));
-        Vec3f pointOnImagePlane = rendercampos + ((pointOnPlaneOneUnitAwayFromEye - rendercampos) * cudaRendercam->focalDistance); // Important for depth of field!
+        float3 pointOnPlaneOneUnitAwayFromEye = middle + (horizontal * ((2 * sx) - 1)) + (vertical * ((2 * sy) - 1));
+        float3 pointOnImagePlane = rendercampos + ((pointOnPlaneOneUnitAwayFromEye - rendercampos) * cudaRendercam->focalDistance); // Important for depth of field!
 
         // calculation of depth of field / camera aperture
         // based on https://github.com/peterkutz/GPUPathTracer
 
-        Vec3f aperturePoint = Vec3f(0, 0, 0);
+        float3 aperturePoint(0, 0, 0);
 
         if (cudaRendercam->apertureRadius > 0.00001) { // the small number is an epsilon value.
 
@@ -1222,15 +1218,13 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
         }
 
         // calculate ray direction of next ray in path
-        Vec3f apertureToImagePlane = pointOnImagePlane - aperturePoint;
-        apertureToImagePlane.normalize(); // ray direction needs to be normalised
+        float3 apertureToImagePlane = normalize(pointOnImagePlane - aperturePoint); // ray direction needs to be normalised
 
         // ray direction
-        Vec3f rayInWorldSpace = apertureToImagePlane;
-        rayInWorldSpace.normalize();
+        float3 rayInWorldSpace = normalize(apertureToImagePlane);
 
         // ray origin
-        Vec3f originInWorldSpace = aperturePoint;
+        float3 originInWorldSpace = aperturePoint;
 
         finalcol += renderKernel(HDRTextureObj, bvhNodesTextureObj, triWoopTextureObj, triIndicesTextureObj, &randState, HDRmap, gpuNodes, gpuTriWoops, gpuDebugTris, gpuTriIndices,
                         originInWorldSpace, rayInWorldSpace, leafcount, tricount)
@@ -1238,7 +1232,7 @@ __global__ void PathTracingKernel(cudaTextureObject_t HDRTextureObj, cudaTexture
     }
 
     // add pixel colour to accumulation buffer (accumulates all samples)
-    accumbuffer[i] += finalcol;
+    accumbuffer[i] += Vec3f(finalcol);
 
     // averaged colour: divide colour by the number of calculated frames so far
     Vec3f tempcol = accumbuffer[i] / framenumber;
@@ -1362,7 +1356,7 @@ void cudaRender(const float4* nodes, const float4* triWoops, const float4* debug
     // Configure grid and block sizes:
     int threadsPerBlock = 256;
     // Compute the number of blocks required, performing a ceiling operation to make sure there are enough:
-    int fullBlocksPerGrid = ((scrwidth * scrheight) + threadsPerBlock - 1) / threadsPerBlock;
+    [[maybe_unused]] int fullBlocksPerGrid = ((scrwidth * scrheight) + threadsPerBlock - 1) / threadsPerBlock;
     // <<<fullBlocksPerGrid, threadsPerBlock>>>
     PathTracingKernel<<<grid, block>>>(HDRTextureObj, bvhNodesTextureObj, triWoopTextureObj, triIndicesTextureObj, outputbuf, accumbuf, HDRmap, nodes, triWoops, debugTris,
                                        triInds, framenumber, hashedframenumber, leafnodecnt, tricnt, cudaRenderCam, scrwidth, scrheight, bufwidth, bufheight); // texdata, texoffsets

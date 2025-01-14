@@ -80,7 +80,7 @@ inline __host__ __device__ float3 make_float3(int3 a)
 }
 
 // negate
-inline __host__ __device__ float3 operator-(float3 &a)
+inline __host__ __device__ float3 operator-(const float3 &a)
 {
 	return make_float3(-a.x, -a.y, -a.z);
 }

@@ -55,6 +55,7 @@ struct Vec3f
 		float _v[3];
 	};
 
+	explicit __host__ __device__ Vec3f(const float3& other): x(other.x), y(other.y), z(other.z) {}
 	__host__ __device__ Vec3f(float _x = 0, float _y = 0, float _z = 0) : x(_x), y(_y), z(_z) {}
 	__host__ __device__ Vec3f(const Vec3f& v) : x(v.x), y(v.y), z(v.z) {}
 	inline __host__ __device__ float length() const { return sqrtf(x*x + y*y + z*z); }
@@ -62,7 +63,7 @@ struct Vec3f
 	inline __host__ __device__ float lengthsq() const { return x*x + y*y + z*z; }
 	inline __host__ __device__ float max() const { return max1f(max1f(x, y), z); }
 	inline __host__ __device__ float min() const { return min1f(min1f(x, y), z); }
-	inline __host__ __device__ Vec3f normalize(){ float norm = sqrtf(x*x + y*y + z*z); x /= norm; y /= norm; z /= norm; return Vec3f(x, y, z); }
+	inline __host__ __device__ Vec3f normalize(){ float norm = sqrtf(x*x + y*y + z*z); x /= norm; y /= norm; z /= norm; return Vec3f(x, y, z); } // Modifies vector
 	inline __host__ __device__ Vec3f& operator+=(const Vec3f& v){ x += v.x; y += v.y; z += v.z; return *this; }
 	inline __host__ __device__ Vec3f& operator-=(const Vec3f& v){ x -= v.x; y -= v.y; z -= v.z; return *this; }
 	inline __host__ __device__ Vec3f& operator*=(const float& a){ x *= a; y *= a; z *= a; return *this; }
@@ -78,6 +79,9 @@ struct Vec3f
 	inline __host__ __device__ bool operator!=(const Vec3f& v){ return x != v.x || y != v.y || z != v.z; }
 	inline __host__ __device__ bool operator==(const Vec3f& v){ return x == v.x && y == v.y && z == v.z; }
 };
+
+// Does not modify vector
+inline __host__ __device__ Vec3f normalize(const Vec3f& other) {return Vec3f(other.x,other.y,other.z) / other.length(); }
 
 struct Vec3i
 {
@@ -132,6 +136,14 @@ inline __host__ __device__ float clampf(float a, float lo, float hi){ return a <
 inline __host__ __device__ Vec3f mixf(const Vec3f& v1, const Vec3f& v2, float a){ return v1 * (1.0 - a) + v2 * a; }
 inline __host__ __device__ float smoothstep(float edge0, float edge1, float x){ float t; t = clampf((x - edge0) / (edge1 - edge0), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 
+inline __host__ __device__
+constexpr void swap(float& lhs, float& rhs) noexcept {
+	const float tmp = lhs;
+	lhs        = rhs;
+	rhs        = tmp;
+}
+
+
 //-------------------------------------------------------------------------------------------------
 
 //----------------------------------
@@ -144,29 +156,34 @@ class Mat3f
 {
 
 public:
-	inline    void            set(const float* ptr)          { FW_ASSERT(ptr); for (int i = 0; i < 3 * 3; i++) get(i) = ptr[i]; }
-	inline    void            set(const float& a)            { for (int i = 0; i < 3 * 3; i++) get(i) = a; }
-	inline    void            setZero(void)                  { set((float)0); }
-	inline    void            setIdentity(void)              { setZero(); for (int i = 0; i < 3; i++) get(i, i) = (float)1; }
-	inline    const float&    get(int idx) const             { FW_ASSERT(idx >= 0 && idx < 3 * 3); return getPtr()[idx]; }
-	inline    float&          get(int idx)                   { FW_ASSERT(idx >= 0 && idx < 3 * 3); return getPtr()[idx]; }
-	inline    const float&    get(int r, int c) const        { FW_ASSERT(r >= 0 && r < 3 && c >= 0 && c < 3); return getPtr()[r + c * 3]; }
-	inline    float&          get(int r, int c)              { FW_ASSERT(r >= 0 && r < 3 && c >= 0 && c < 3); return getPtr()[r + c * 3]; }
-	inline    void            set(const Mat3f& v)            { set(v.getPtr()); }
-	inline    Mat3f&          operator=   (const float& a)   { set(a); return *(Mat3f*)this; }
-	inline    const float&    operator()  (int r, int c) const        { return get(r, c); }
-	inline    float&          operator()  (int r, int c)              { return get(r, c); }
-	inline    float           det(void) const;
+	inline __host__ __device__ void            set(const float* ptr)          { FW_ASSERT(ptr); for (int i = 0; i < 3 * 3; i++) get(i) = ptr[i]; }
+	inline __host__ __device__ void            set(const float& a)            { for (int i = 0; i < 3 * 3; i++) get(i) = a; }
+	inline __host__ __device__ void            setZero(void)                  { set((float)0); }
+	inline __host__ __device__ void            setIdentity(void)              { setZero(); for (int i = 0; i < 3; i++) get(i, i) = (float)1; }
+	inline __host__ __device__ const float&    get(int idx) const             { FW_ASSERT(idx >= 0 && idx < 3 * 3); return getPtr()[idx]; }
+	inline __host__ __device__ float&          get(int idx)                   { FW_ASSERT(idx >= 0 && idx < 3 * 3); return getPtr()[idx]; }
+	inline __host__ __device__ const float&    get(int r, int c) const        { FW_ASSERT(r >= 0 && r < 3 && c >= 0 && c < 3); return getPtr()[r + c * 3]; }
+	inline __host__ __device__ float&          get(int r, int c)              { FW_ASSERT(r >= 0 && r < 3 && c >= 0 && c < 3); return getPtr()[r + c * 3]; }
+	inline __host__ __device__ Vec3f           getRow(int idx) const;
+	inline __host__ __device__ Vec3f           getCol(int idx) const;
+	inline __host__ __device__ void            set(const Mat3f& v)            { set(v.getPtr()); }
+	inline __host__ __device__ Mat3f&          operator=   (const float& a)   { set(a); return *(Mat3f*)this; }
+	inline __host__ __device__ const float&    operator()  (int r, int c) const        { return get(r, c); }
+	inline __host__ __device__ float&          operator()  (int r, int c)              { return get(r, c); }
+	inline __host__ __device__ float           det(void) const;
+
+	inline __host__ __device__ void            transpose(void)                {swap(m01,m10); swap(m02,m20), swap(m21,m12);}
 
 	inline                    Mat3f(void)                      { setIdentity(); }
-	inline    explicit        Mat3f(F32 a)                     { set(a); }
+	inline __host__ __device__ explicit        Mat3f(F32 a)                     { set(a); }
 
-	inline    const F32*      getPtr(void) const             { return &m00; }
-	inline    F32*            getPtr(void)                   { return &m00; }
+	inline __host__ __device__ const F32*      getPtr(void) const             { return &m00; }
+	inline __host__ __device__ F32*            getPtr(void)                   { return &m00; }
 	static inline Mat3f       fromPtr(const F32* ptr)        { Mat3f v; v.set(ptr); return v; }
 
-	inline Mat3f(const Mat3f& v) { set(v); }
-	inline Mat3f& operator=(const Mat3f& v) { set(v); return *this; }
+	inline __host__ __device__ Mat3f(const Vec3f& a, const Vec3f& b, const Vec3f& c): m00(a.x), m10(a.y), m20(a.z), m01(b.x), m11(b.y), m21(b.z), m02(c.x), m12(c.y), m22(c.z) {}
+	inline __host__ __device__ Mat3f(const Mat3f& v) { set(v); }
+	inline __host__ __device__ Mat3f& operator=(const Mat3f& v) { set(v); return *this; }
 
 #if !FW_CUDA 	
 	static			Mat3f			rotation	(const Vec3f& axis, F32 angle);		// Rotation of "angle" radians around "axis". Axis must be unit!
@@ -177,6 +194,36 @@ public:
 	F32             m01, m11, m21;
 	F32             m02, m12, m22;
 };
+
+
+inline __host__ __device__ Vec3f Mat3f::getCol(const int idx) const {
+	Vec3f r;
+	for (int i = 0; i < 3; i++) {
+		r._v[i] = get(i,idx);
+	}
+	return r;
+}
+
+inline __host__ __device__ Vec3f Mat3f::getRow(const int idx) const {
+	Vec3f r;
+	for (int i = 0; i < 3; i++) {
+		r._v[i] = get(idx, i);
+	}
+	return r;
+}
+
+
+inline __host__ __device__ Vec3f operator*(const Mat3f& m, const Vec3f& v) {
+	Vec3f result( dot(m.getRow(0), v), dot(m.getRow(1), v), dot(m.getRow(2), v) );
+	return result;
+}
+
+inline __host__ __device__ Vec3f operator*(const Vec3f& v, const Mat3f& m) {
+	Vec3f result(dot(m.getCol(0), v), dot(m.getCol(1), v), dot(m.getCol(2), v) );
+	return result;
+}
+
+
 
 
 class Mat4f 
@@ -286,6 +333,7 @@ void Mat4f::setRow(int idx, const Vec4f& v)
 		get(idx, i) = v._v[i];
 }
 
+__host__ __device__
 inline float detImpl(const Mat3f& v)
 {
 	return v(0, 0) * v(1, 1) * v(2, 2) - v(0, 0) * v(1, 2) * v(2, 1) +
